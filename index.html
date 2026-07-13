@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>โรงเรียนออนไลน์</title>
+<style>
+  :root{--ink:#1f2937;--muted:#6b7280;--line:#d1d5db;--accent:#0f766e;--card:#fff}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden}
+  body{font-family:'Leelawadee UI','Segoe UI',Tahoma,sans-serif;color:var(--ink);
+       background:linear-gradient(#6da344,#578b38);display:flex;flex-direction:column;height:100vh}
+  header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 14px;
+         background:var(--card);border-bottom:1px solid var(--line);z-index:10}
+  h1{font-size:18px;margin:0}
+  h1 .sub{font-size:11px;color:var(--muted);font-weight:400;margin-left:6px}
+  .days{display:flex;gap:4px}
+  .days button{border:1px solid var(--line);background:#fff;color:var(--ink);padding:5px 9px;
+               border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit}
+  .days button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .timebar{display:flex;align-items:center;gap:10px;flex:1;min-width:240px}
+  .timebar input[type=range]{flex:1;accent-color:var(--accent)}
+  .slot-label{font-size:14px;font-weight:600;min-width:150px;text-align:center}
+  .slot-label small{display:block;color:var(--muted);font-weight:400;font-size:11px}
+  .now-btn{border:none;background:#f59e0b;color:#fff;padding:6px 12px;border-radius:8px;
+           cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;white-space:nowrap}
+  label.tg{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap}
+  .stat{font-size:12px;color:var(--muted);white-space:nowrap}
+  .stat b{color:var(--ink)}
+  main{flex:1;position:relative;overflow:hidden}
+  canvas{display:block;cursor:grab}
+  canvas.drag{cursor:grabbing}
+  .legend{position:absolute;left:10px;bottom:10px;background:rgba(255,255,255,.92);
+          border:1px solid var(--line);border-radius:10px;padding:7px 9px;font-size:11px;
+          display:flex;flex-wrap:wrap;gap:5px 11px;max-width:300px}
+  .legend .li{display:flex;align-items:center;gap:5px}
+  .legend .dot{width:11px;height:11px;border-radius:50%}
+  .hint{position:absolute;right:10px;bottom:10px;background:rgba(0,0,0,.55);color:#fff;
+        font-size:11px;padding:5px 9px;border-radius:8px}
+  .popup{position:absolute;background:var(--card);border:1px solid var(--line);border-radius:12px;
+         box-shadow:0 8px 30px rgba(0,0,0,.25);padding:12px 14px;font-size:13px;max-width:280px;
+         z-index:50;display:none}
+  .popup h3{margin:0 0 4px;font-size:15px}
+  .popup .tag{display:inline-block;padding:1px 8px;border-radius:20px;color:#fff;font-size:11px;margin-bottom:6px}
+  .popup .row{color:var(--muted);margin:2px 0}
+  .popup .row b{color:var(--ink)}
+  .popup .close{position:absolute;right:8px;top:6px;cursor:pointer;color:var(--muted);font-size:16px}
+  .popup ul{margin:6px 0 0;padding-left:18px;max-height:160px;overflow:auto}
+  .popup li{margin:1px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>🏫 โรงเรียนออนไลน์ <span class="sub">ตารางสอนจริง ป.1-6 ภาค 1/2569 · แนว RO</span></h1>
+  <div class="days" id="days"></div>
+  <div class="timebar">
+    <input type="range" id="slider" min="0" step="1">
+    <div class="slot-label" id="slotLabel"></div>
+    <button class="now-btn" id="nowBtn">⏰ ตอนนี้</button>
+  </div>
+  <label class="tg"><input type="checkbox" id="names" checked> ชื่อ</label>
+  <label class="tg"><input type="checkbox" id="bell" checked> 🔔</label>
+  <div class="stat" id="stat"></div>
+</header>
+<main>
+  <canvas id="cv"></canvas>
+  <div class="legend" id="legend"></div>
+  <div class="hint">ลากเลื่อน · ล้อเมาส์ซูม · คลิกครู/นักเรียน/อาคาร/สัตว์</div>
+  <div class="popup" id="popup"></div>
+</main>
+
+<script src="data.js"></script>
+<script>
+// ================= ข้อมูล =================
+const GROUPS=[
+ {name:'ภาษาไทย',color:'#e11d48'},{name:'คณิตศาสตร์',color:'#2563eb'},
+ {name:'วิทยาศาสตร์',color:'#16a34a'},{name:'สังคมศึกษา',color:'#ea580c'},
+ {name:'สุขศึกษาและพลศึกษา',color:'#0891b2'},{name:'ศิลปะ',color:'#9333ea'},
+ {name:'การงาน/คอมพิวเตอร์',color:'#475569'},{name:'ภาษาต่างประเทศ',color:'#db2777'}];
+const GEMOTE=['📖','🧮','🔬','🗺️','⚽','🎨','💻','🗣️'];
+const TYPE_ICON={classroom:'📚',sport:'⚽',art:'🎨',music:'🎵',computer:'💻',science:'🔬',library:'📖',staff:'☕',canteen:'🍽️',plaza:'🚩'};
+const FLOOR={classroom:'#f3e9d2',computer:'#d9e2ec',science:'#d7f0dd',art:'#ecdcf7',music:'#f6e3fb',
+             sport:'#7cc47f',library:'#fdeccb',staff:'#e7ede6',canteen:'#ffe6cc'};
+const ACCENT={classroom:'#b98a4b',computer:'#475569',science:'#16a34a',art:'#9333ea',music:'#a855f7',
+              sport:'#0891b2',library:'#f59e0b',staff:'#64748b',canteen:'#f97316',plaza:'#b91c1c'};
+const ROOF={classroom:'#c65a3d',computer:'#5b6b7d',science:'#3d8f57',art:'#8b4bb5',music:'#a05cc4',
+            library:'#d98b2b',staff:'#7a8577',canteen:'#e07b3a'};
+const PROP={classroom:'📖',computer:'🖥️',science:'🧪',art:'🎨',music:'🥁',library:'📚',canteen:'🍲',staff:'☕'};
+
+// ผังจริง: ห้องเรียน ป.1-6 จำนวน 12 ห้อง (จาก data.js) + ห้องพิเศษ
+const CLASS_ORDER=['P11','P12','P21','P22','P31','P32','P41','P42','P51','P52','P61','P62'];
+const ROOMS=CLASS_ORDER.map((id,i)=>({id,label:SCHOOL.classes[id],type:'classroom',
+  gx:2+(i%4)*7,gy:2+((i/4)|0)*6,gw:5,gh:4}));
+ROOMS.push(
+ {id:'staff',  label:'ห้องพักครู',type:'staff',  gx:2, gy:20,gw:5,gh:4},
+ {id:'canteen',label:'โรงอาหาร', type:'canteen',gx:9, gy:20,gw:5,gh:4},
+ {id:'comp',   label:'ห้องคอม',  type:'computer',gx:16,gy:20,gw:5,gh:4},
+ {id:'artmus', label:'ห้องศิลปะ-ดนตรี',type:'art',gx:23,gy:20,gw:5,gh:4},
+ {id:'sport',  label:'สนามฟุตบอล',type:'sport', gx:30,gy:2, gw:8,gh:11});
+const ROOM_BY_ID=Object.fromEntries(ROOMS.map(r=>[r.id,r]));
+ROOM_BY_ID.plaza={id:'plaza',label:'ลานเสาธง',type:'plaza'};
+const CLASSROOMS=ROOMS.filter(r=>r.type==='classroom').map(r=>r.id);
+const GW=40,GH=28;
+const FLAGP={x:33,y:15};                 // เสาธง (แถวหน้าสุดของลาน)
+const PLAZA={x1:29,y1:16,x2:37,y2:21};   // ลานเข้าแถว
+
+const DAYS=['จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์'];
+// เวลาจริงตามตารางโรงเรียน (คาบ 2-7)
+const PERIODS=[
+ {label:'เคารพธงชาติ',s:'08:00',e:'08:30',assembly:true},
+ {label:'คาบ 2',s:'08:30',e:'09:30'},{label:'คาบ 3',s:'09:30',e:'10:30'},
+ {label:'คาบ 4',s:'10:30',e:'11:30'},
+ {label:'พักเที่ยง',s:'11:30',e:'12:30',lunch:true},
+ {label:'คาบ 5',s:'12:30',e:'13:30'},{label:'คาบ 6',s:'13:30',e:'14:30'},
+ {label:'คาบ 7',s:'14:30',e:'15:30'}];
+const PID=[null,2,3,4,null,5,6,7]; // index → เลขคาบทางการ
+
+const NICK=['ต้นกล้า','ใบบัว','น้ำใส','ข้าวปั้น','มายด์','ภูผา','แพรวา','เจได','บีม','ออม',
+'กันต์','พลอย','เนย','ไอซ์','ต้นน้ำ','ฟ้าใส','โฟกัส','การ์ตูน','เพชร','วุ้นเส้น',
+'ปุณณ์','แตงโม','บอส','มีนา','เข็ม','ธาม','ขนุน'];
+const SKIN=['#f2c9a0','#e8b088','#f5d6b3','#d99b6c'];
+const HAIR=['#2b2b2b','#4a2e1c','#111827','#3a2a1a'];
+
+// ครูจริง 30 คนจาก data.js + นักเรียน (mock, 2-3 คน/ห้อง)
+const TEACHERS=SCHOOL.teachers.map((t,i)=>({id:i,name:t.disp,full:t.name,group:t.group,
+  skin:SKIN[i%SKIN.length],hair:HAIR[(i*3)%HAIR.length],style:i%3,
+  shirt:GROUPS[t.group].color,pants:'#3a3a3a',scale:1}));
+const STUDENTS=NICK.map((name,i)=>({id:100+i,name,home:CLASSROOMS[i%CLASSROOMS.length],student:true,
+  skin:SKIN[(i*2)%SKIN.length],hair:'#1a1a1a',style:i%2?2:0,
+  shirt:'#f8f8f8',pants:'#1e3a5f',scale:0.8}));
+
+function hash(a,b,c){let x=(Math.imul(a,73856093)^Math.imul(b,19349663)^Math.imul(c,83492791))>>>0;
+  x=Math.imul(x^(x>>>15),2246822507);x^=x>>>13;return x>>>0;}
+// วิชาพิเศษ → ห้องเฉพาะ (นอกนั้นสอนที่ห้องประจำชั้น)
+function SUBJ_ROOM(s){
+  if(/วิทยาการคำนวณ/.test(s))return'comp';
+  if(/พลศึกษา|ลูกเสือ/.test(s))return'sport';
+  if(/ทัศนศิลป์|ดนตรี|นาฏศิลป์/.test(s))return'artmus';
+  return null;
+}
+function schedOf(t,d,p){
+  const per=PERIODS[p];
+  if(per.assembly)return{rid:'plaza'};
+  if(per.lunch)return{rid:'canteen'};
+  const e=SCHOOL.tt[t.full]?.[d+1]?.[PID[p]];
+  if(!e)return{rid:null};
+  return{rid:SUBJ_ROOM(e.s)||e.c,subj:e.s,cls:SCHOOL.classes[e.c]};
+}
+function roomOf(t,d,p){return schedOf(t,d,p).rid;}
+function studentRoomOf(s,p){
+  const per=PERIODS[p];if(per.assembly)return'plaza';
+  if(per.lunch)return s.id%2?'sport':'canteen';
+  return s.home;
+}
+
+// ================= กริด + ประตู + โต๊ะ =================
+const grid=[],plotTiles={},walkTiles={};
+for(let y=0;y<GH;y++){grid[y]=[];for(let x=0;x<GW;x++)grid[y][x]={plot:null,deco:null,path:false,desk:false};}
+ROOMS.forEach(r=>{plotTiles[r.id]=[];
+  for(let y=r.gy;y<r.gy+r.gh;y++)for(let x=r.gx;x<r.gx+r.gw;x++){grid[y][x].plot=r.id;plotTiles[r.id].push({x,y});}});
+const DOOR={};
+ROOMS.forEach(r=>{if(r.type!=='sport')DOOR[r.id]={x:r.gx+(r.gw>>1),y:r.gy+r.gh-1};});
+// โต๊ะ/เฟอร์นิเจอร์ (ช่องกลางห้อง เดินอ้อมได้)
+const DESK_LAYOUT={classroom:[[1,1],[2,1],[3,1],[1,2],[2,2],[3,2]],
+ computer:[[1,1],[2,1],[3,1],[1,2],[2,2],[3,2]],science:[[1,1],[2,1],[3,1],[1,2],[2,2],[3,2]],
+ art:[[1,1],[3,1],[1,2],[3,2]],music:[[1,1],[2,2],[3,1]],
+ library:[[1,1],[2,1],[3,1],[2,2]],canteen:[[1,1],[2,1],[3,1],[1,2],[2,2],[3,2]],
+ staff:[[1,1],[3,2]]};
+ROOMS.forEach(r=>{(DESK_LAYOUT[r.type]||[]).forEach(([dx,dy])=>{grid[r.gy+dy][r.gx+dx].desk=true;});
+  walkTiles[r.id]=plotTiles[r.id].filter(t=>!grid[t.y][t.x].desk);});
+// ทางเดินปูน (กว้าง 2 ช่อง)
+for(const x of[7,8,14,15,21,22,28,29])for(let y=1;y<=25;y++)if(!grid[y][x].plot)grid[y][x].path=true;
+for(const y of[6,7,12,13,18,19])for(let x=1;x<=29;x++)if(!grid[y][x].plot)grid[y][x].path=true;
+for(const rid in DOOR){const d=DOOR[rid];if(grid[d.y+1]&&!grid[d.y+1][d.x].plot)grid[d.y+1][d.x].path=true;}
+// ลานเสาธง (ปูนลาน)
+for(let y=15;y<=PLAZA.y2;y++)for(let x=PLAZA.x1;x<=PLAZA.x2;x++)if(!grid[y][x].plot)grid[y][x].path=true;
+grid[FLAGP.y][FLAGP.x].deco='flag';
+// สระน้ำ + ต้นไม้ขอบ
+for(let y=23;y<=26;y++)for(let x=31;x<=36;x++)if(!grid[y][x].plot&&!grid[y][x].path)grid[y][x].deco='pond';
+for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
+  const c=grid[y][x];if(c.plot||c.deco||c.path)continue;
+  if((x<2||x>GW-3||y<2||y>GH-3)&&hash(x+7,y+7,3)%5===0)c.deco='tree';}
+// แถวเข้าแถว (ครูหน้า นักเรียนหลัง)
+const FORM=[];
+for(let y=PLAZA.y1;y<=PLAZA.y2;y++)for(let x=PLAZA.x1;x<=PLAZA.x2;x++)
+  if(!grid[y][x].deco)FORM.push({x,y});
+walkTiles.plaza=FORM;plotTiles.plaza=FORM;
+
+const walkable=(x,y)=>x>=0&&y>=0&&x<GW&&y<GH&&!grid[y][x].desk&&(grid[y][x].plot||!grid[y][x].deco);
+function canStep(fx,fy,tx,ty){
+  if(!walkable(tx,ty))return false;
+  const fp=grid[fy][fx].plot,tp=grid[ty][tx].plot;
+  if(fp===tp)return true;
+  if(fp&&tp)return false;
+  if(fp){const d=DOOR[fp];return!d||(fx===d.x&&fy===d.y);}
+  const d=DOOR[tp];return!d||(tx===d.x&&ty===d.y);
+}
+function bfs(sx,sy,tx,ty){
+  if(!walkable(tx,ty))return[];
+  const q=[[sx,sy]],prev={},key=(x,y)=>x+','+y,seen={[key(sx,sy)]:1};
+  const D=[[1,0],[-1,0],[0,1],[0,-1]];
+  while(q.length){
+    const[x,y]=q.shift();
+    if(x===tx&&y===ty){const p=[];let k=key(x,y);
+      while(k!==key(sx,sy)){const[a,b]=k.split(',').map(Number);p.unshift({x:a,y:b});k=prev[k];}return p;}
+    for(const[dx,dy]of D){const nx=x+dx,ny=y+dy,nk=key(nx,ny);
+      if(!seen[nk]&&canStep(x,y,nx,ny)){seen[nk]=1;prev[nk]=key(x,y);q.push([nx,ny]);}}
+  }return[];
+}
+let _rs=1;const rnd=()=>{_rs=(Math.imul(_rs,1103515245)+12345)>>>0;return _rs;};
+const randTileIn=rid=>{const ts=walkTiles[rid]||plotTiles[rid];return ts[rnd()%ts.length];};
+const YARD=[];for(let y=1;y<GH-1;y++)for(let x=1;x<GW-1;x++)
+  if(!grid[y][x].plot&&!grid[y][x].deco)YARD.push({x,y});
+
+// ================= isometric =================
+const TW2=32,TH2=16,PH=12,WH=30,RH=14;
+const iso=(gx,gy)=>[(gx-gy)*TW2,(gx+gy)*TH2];
+const lerp=(p,q,t)=>[p[0]+(q[0]-p[0])*t,p[1]+(q[1]-p[1])*t];
+function shade(hex,f){const n=parseInt(hex.slice(1),16);
+  const r=Math.min(255,((n>>16)&255)*f)|0,g=Math.min(255,((n>>8)&255)*f)|0,b2=Math.min(255,(n&255)*f)|0;
+  return`rgb(${r},${g},${b2})`;}
+function diamond(c,cx,cy,s=1){c.beginPath();c.moveTo(cx,cy-TH2*s);c.lineTo(cx+TW2*s,cy);c.lineTo(cx,cy+TH2*s);c.lineTo(cx-TW2*s,cy);c.closePath();}
+function quad(c,p1,p2,p3,p4,fill){c.fillStyle=fill;c.beginPath();c.moveTo(p1[0],p1[1]);c.lineTo(p2[0],p2[1]);c.lineTo(p3[0],p3[1]);c.lineTo(p4[0],p4[1]);c.closePath();c.fill();}
+function tri(c,p1,p2,p3,fill){c.fillStyle=fill;c.beginPath();c.moveTo(p1[0],p1[1]);c.lineTo(p2[0],p2[1]);c.lineTo(p3[0],p3[1]);c.closePath();c.fill();}
+function roundRect(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
+
+const mainEl=document.querySelector('main');
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+let cam={x:0,y:0,s:1};
+function resize(){cv.width=innerWidth;cv.height=mainEl.clientHeight;}
+
+// ---- prerender พื้น+เฟอร์นิเจอร์ (ครั้งเดียว) ----
+let bg,bgOX,bgOY;
+function prerender(){
+  let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
+  [[0,0],[GW,0],[0,GH],[GW,GH]].forEach(([x,y])=>{const[wx,wy]=iso(x,y);
+    minX=Math.min(minX,wx);maxX=Math.max(maxX,wx);minY=Math.min(minY,wy);maxY=Math.max(maxY,wy);});
+  minX-=TW2;maxX+=TW2;minY-=120;maxY+=PH+20;
+  bgOX=minX;bgOY=minY;
+  bg=document.createElement('canvas');bg.width=Math.ceil(maxX-minX);bg.height=Math.ceil(maxY-minY);
+  const b=bg.getContext('2d');b.translate(-minX,-minY);
+  // พื้น
+  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
+    const[cx,cy]=iso(x,y),c=grid[y][x];
+    if(c.deco==='pond'){b.fillStyle=((x+y)%2)?'#4aa3d4':'#57add9';diamond(b,cx,cy);b.fill();continue;}
+    if(c.path){b.fillStyle=((x+y)%2)?'#d6cba4':'#cfc49e';diamond(b,cx,cy);b.fill();
+      b.strokeStyle='rgba(0,0,0,.07)';diamond(b,cx,cy);b.stroke();continue;}
+    b.fillStyle=((x+y)%2)?'#8fc862':'#84bf58';diamond(b,cx,cy);b.fill();
+    b.strokeStyle='rgba(0,0,0,.04)';diamond(b,cx,cy);b.stroke();
+  }
+  // เงาอาคารทอดลงพื้น (เพิ่มมิติ)
+  ROOMS.forEach(r=>{
+    const A=iso(r.gx,r.gy),B=iso(r.gx+r.gw,r.gy),C=iso(r.gx+r.gw,r.gy+r.gh),D=iso(r.gx,r.gy+r.gh);
+    const o=p=>[p[0]+10,p[1]+6];
+    quad(b,o(A),o(B),o(C),o(D),'rgba(0,0,20,.13)');
+  });
+  // แท่นพื้นอาคาร
+  ROOMS.forEach(r=>{
+    const A=iso(r.gx,r.gy),B=iso(r.gx+r.gw,r.gy),C=iso(r.gx+r.gw,r.gy+r.gh),D=iso(r.gx,r.gy+r.gh);
+    const up=p=>[p[0],p[1]-PH];
+    quad(b,B,C,up(C),up(B),'rgba(0,0,0,.28)');
+    quad(b,C,D,up(D),up(C),'rgba(0,0,0,.18)');
+    quad(b,up(A),up(B),up(C),up(D),FLOOR[r.type]);
+    if(r.type==='sport'){
+      b.strokeStyle='#fff';b.lineWidth=2;
+      b.beginPath();b.moveTo(...up(A));b.lineTo(...up(B));b.lineTo(...up(C));b.lineTo(...up(D));b.closePath();b.stroke();
+      const M1=up(iso(r.gx+r.gw/2,r.gy)),M2=up(iso(r.gx+r.gw/2,r.gy+r.gh));
+      b.beginPath();b.moveTo(M1[0],M1[1]);b.lineTo(M2[0],M2[1]);b.stroke();
+      const CC=up(iso(r.gx+r.gw/2,r.gy+r.gh/2));
+      b.beginPath();b.ellipse(CC[0],CC[1],32,16,0,0,7);b.stroke();
+      [[r.gx+0.6,r.gy+r.gh/2],[r.gx+r.gw-0.6,r.gy+r.gh/2]].forEach(([gx,gy])=>{
+        const G=up(iso(gx,gy));b.strokeRect(G[0]-8,G[1]-14,16,14);});
+      b.lineWidth=1;
+    }
+  });
+  // โต๊ะ + อุปกรณ์ (emoji)
+  b.font='10px "Segoe UI Emoji"';b.textAlign='center';b.textBaseline='middle';
+  ROOMS.forEach(r=>{(DESK_LAYOUT[r.type]||[]).forEach(([dx,dy])=>{
+    const[cx,cy0]=iso(r.gx+dx,r.gy+dy),cy=cy0-PH;
+    const h=8,col=r.type==='canteen'?'#c9995c':'#8b6238';
+    // ขาโต๊ะ/ด้านข้าง
+    quad(b,[cx+TW2*.55,cy],[cx,cy+TH2*.55],[cx,cy+TH2*.55-h],[cx+TW2*.55,cy-h],shade(col,0.7));
+    quad(b,[cx,cy+TH2*.55],[cx-TW2*.55,cy],[cx-TW2*.55,cy-h],[cx,cy+TH2*.55-h],shade(col,0.55));
+    // หน้าโต๊ะ
+    b.fillStyle=col;diamond(b,cx,cy-h,0.55);b.fill();
+    b.strokeStyle='rgba(0,0,0,.2)';diamond(b,cx,cy-h,0.55);b.stroke();
+    b.fillText(PROP[r.type]||'',cx,cy-h-6);
+  });});
+  // ต้นไม้
+  const trees=[];
+  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++)if(grid[y][x].deco==='tree')trees.push({x,y});
+  trees.sort((a,b2)=>(a.x+a.y)-(b2.x+b2.y)).forEach((t,i)=>{
+    const[cx,cy]=iso(t.x,t.y),s=0.85+((i*7)%5)*0.09;
+    b.fillStyle='rgba(0,0,0,.18)';b.beginPath();b.ellipse(cx,cy,12*s,6*s,0,0,7);b.fill();
+    b.fillStyle='#6b4423';b.fillRect(cx-3*s,cy-22*s,6*s,22*s);
+    b.fillStyle='#3f8f3a';b.beginPath();b.arc(cx,cy-28*s,15*s,0,7);b.fill();
+    b.fillStyle='#4aa544';b.beginPath();b.arc(cx-5*s,cy-32*s,9*s,0,7);b.fill();});
+}
+
+// ---- อาคาร (วาดทุกเฟรม เรียง depth) ----
+function drawBack(r){
+  const A=iso(r.gx,r.gy),B=iso(r.gx+r.gw,r.gy),D=iso(r.gx,r.gy+r.gh);
+  const pA=[A[0],A[1]-PH],pB=[B[0],B[1]-PH],pD=[D[0],D[1]-PH];
+  if(r.type!=='sport'){
+    const tA=[pA[0],pA[1]-WH],tB=[pB[0],pB[1]-WH],tD=[pD[0],pD[1]-WH];
+    quad(ctx,pA,pD,tD,tA,'#f6efdd');
+    quad(ctx,pA,pB,tB,tA,'#eadfc4');
+    // หน้าต่างผนังซ้าย
+    const win=(P1,P2,n,u)=>{for(let i=1;i<=n;i++){const P=lerp(P1,P2,i/(n+1));
+      const cx=P[0],cy=P[1]-PH-WH/2,dx=u[0]*5,dy=u[1]*5;
+      quad(ctx,[cx-dx,cy-dy-6],[cx+dx,cy+dy-6],[cx+dx,cy+dy+6],[cx-dx,cy-dy+6],'#8fb6d4');
+      ctx.strokeStyle='#fff';
+      ctx.beginPath();ctx.moveTo(cx-dx,cy-dy-6);ctx.lineTo(cx+dx,cy+dy-6);ctx.lineTo(cx+dx,cy+dy+6);ctx.lineTo(cx-dx,cy-dy+6);ctx.closePath();ctx.stroke();}};
+    win(A,D,Math.min(3,r.gh-2),[-0.894,0.447]);
+    // ผนังขวา: กระดานดำ (ห้องเรียน/คอม/วิทย์) หรือหน้าต่าง
+    if(['classroom','computer','science'].includes(r.type)){
+      const P=lerp(A,B,0.5),cx=P[0],cy=P[1]-PH-WH/2,u=[0.894,0.447],dx=u[0]*13,dy=u[1]*13;
+      quad(ctx,[cx-dx,cy-dy-8],[cx+dx,cy+dy-8],[cx+dx,cy+dy+8],[cx-dx,cy-dy+8],'#2d5a3d');
+      ctx.strokeStyle='#c9995c';ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(cx-dx,cy-dy-8);ctx.lineTo(cx+dx,cy+dy-8);ctx.lineTo(cx+dx,cy+dy+8);ctx.lineTo(cx-dx,cy-dy+8);ctx.closePath();ctx.stroke();ctx.lineWidth=1;
+      ctx.strokeStyle='rgba(255,255,255,.6)';
+      ctx.beginPath();ctx.moveTo(cx-dx*.6,cy-dy*.6-3);ctx.lineTo(cx+dx*.2,cy+dy*.2-3);ctx.stroke();
+    }else win(A,B,Math.min(3,r.gw-2),[0.894,0.447]);
+  }
+  // ป้ายชื่อ
+  const sy=pA[1]-(r.type==='sport'?6:WH+RH+14);
+  const tx=`${TYPE_ICON[r.type]} ${r.label}`;
+  ctx.font='bold 12px Leelawadee UI,Segoe UI';const w=ctx.measureText(tx).width+14;
+  ctx.fillStyle='#5b3b1a';ctx.fillRect(pA[0]-1.5,sy-20,3,20);
+  ctx.fillStyle='#fffbe8';ctx.strokeStyle=ACCENT[r.type];ctx.lineWidth=2;
+  roundRect(ctx,pA[0]-w/2,sy-38,w,20,5);ctx.fill();ctx.stroke();ctx.lineWidth=1;
+  ctx.fillStyle='#1f2937';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(tx,pA[0],sy-28);
+}
+function drawFront(r){
+  if(r.type==='sport')return;
+  const B=iso(r.gx+r.gw,r.gy),C=iso(r.gx+r.gw,r.gy+r.gh),D=iso(r.gx,r.gy+r.gh);
+  const pB=[B[0],B[1]-PH],pC=[C[0],C[1]-PH],pD=[D[0],D[1]-PH];
+  const RRH=7,d=DOOR[r.id];
+  const t1=(d.x-r.gx+0.12)/r.gw,t2=(d.x-r.gx+0.88)/r.gw;
+  const rail=(P1,P2,col)=>quad(ctx,P1,P2,[P2[0],P2[1]-RRH],[P1[0],P1[1]-RRH],col);
+  rail(pD,lerp(pD,pC,t1),'#f0e7d0');rail(lerp(pD,pC,t2),pC,'#f0e7d0');
+  rail(pC,pB,'#e2d7bb');
+  const s1=lerp(pD,pC,t1),s2=lerp(pD,pC,t2);
+  quad(ctx,s1,s2,[s2[0]-9,s2[1]+PH],[s1[0]-9,s1[1]+PH],'#dcd3b4');
+  // หลังคาเต็มหลัง โปร่งแสง (มองทะลุเห็นในห้อง)
+  const e=0.45,hz=PH+WH;
+  const eA=iso(r.gx-e,r.gy-e),eB=iso(r.gx+r.gw+e,r.gy-e),eC=iso(r.gx+r.gw+e,r.gy+r.gh+e),eD=iso(r.gx-e,r.gy+r.gh+e);
+  [eA,eB,eC,eD].forEach(p=>p[1]-=hz);
+  const R1=iso(r.gx+1.4,r.gy+r.gh/2),R2=iso(r.gx+r.gw-1.4,r.gy+r.gh/2);
+  R1[1]-=hz+RH;R2[1]-=hz+RH;
+  const rc=ROOF[r.type]||'#c65a3d';
+  ctx.globalAlpha=0.42;
+  quad(ctx,eA,eB,R2,R1,shade(rc,1.15));   // ผืนเหนือ
+  quad(ctx,eD,eC,R2,R1,shade(rc,0.8));    // ผืนใต้
+  tri(ctx,eA,eD,R1,shade(rc,0.95));       // จั่วซ้าย
+  tri(ctx,eB,eC,R2,shade(rc,1.0));        // จั่วขวา
+  ctx.globalAlpha=0.6;
+  ctx.strokeStyle=shade(rc,0.6);
+  ctx.beginPath();ctx.moveTo(R1[0],R1[1]);ctx.lineTo(R2[0],R2[1]);ctx.stroke();
+  ctx.globalAlpha=1;
+}
+
+// ================= ตัวละคร =================
+const EYE={0:[2,4.6],1:[-0.5,3.2],2:[-2.2,2.2],3:[-3.2,0.5],4:[-4.6,-2]};
+class Char{
+  constructor(a){this.a=a;a.room=a.room||'staff';const s=randTileIn(a.room);
+    this.fx=s.x;this.fy=s.y;this.path=[];this.dir=2;this.phase=0;
+    this.wander=1+(a.id%5);this.clickT=-9;}
+  get tile(){return{x:Math.round(this.fx),y:Math.round(this.fy)};}
+  goto(rid){const s=this.tile,g=randTileIn(rid);this.path=bfs(s.x,s.y,g.x,g.y);}
+  gotoTile(g){const s=this.tile;this.path=bfs(s.x,s.y,Math.round(g.x),Math.round(g.y));}
+  update(dt){
+    const inSport=this.a.room==='sport'&&this.a.student;
+    if(this.path.length){
+      const n=this.path[0],dx=n.x-this.fx,dy=n.y-this.fy,dist=Math.hypot(dx,dy);
+      const step=(inSport?4.5:3)*dt;
+      const sx=dx-dy,sy=(dx+dy)*0.5;
+      if(Math.abs(sx)+Math.abs(sy)>0.01){const ang=(Math.atan2(sy,sx)*180/Math.PI+360)%360;
+        this.dir=Math.round(ang/45)%8;}
+      if(dist<=step){this.fx=n.x;this.fy=n.y;this.path.shift();}
+      else{this.fx+=dx/dist*step;this.fy+=dy/dist*step;}
+      this.phase+=dt*(inSport?12:9);this.moving=true;
+    }else{
+      this.moving=false;
+      if(this.a.room==='plaza'){this.dir=6;return;} // เข้าแถว หันหน้าเข้าเสาธง
+      this.wander-=dt;
+      if(this.wander<=0){this.wander=inSport?0.4+Math.random():2+Math.random()*5;
+        const ts=walkTiles[this.a.room],g=ts[(Math.random()*ts.length)|0],s=this.tile;
+        this.path=bfs(s.x,s.y,g.x,g.y);}
+    }
+  }
+  draw(){
+    const a=this.a,[wx,wy0]=iso(this.fx,this.fy);
+    const on=(grid[Math.round(this.fy)]?.[Math.round(this.fx)]?.plot)?PH:0;
+    const wy=wy0-on;
+    ctx.save();ctx.translate(wx,wy);ctx.scale(a.scale,a.scale);
+    const bob=this.moving?Math.abs(Math.sin(this.phase))*2.5:Math.sin(last/900+a.id)*0.7;
+    const swing=this.moving?Math.sin(this.phase)*2.2:0;
+    ctx.fillStyle='rgba(0,0,0,.25)';ctx.beginPath();ctx.ellipse(0,0,9,4,0,0,7);ctx.fill();
+    ctx.fillStyle=a.pants;
+    ctx.fillRect(-4,-8-bob+swing,3,7);ctx.fillRect(1,-8-bob-swing,3,7);
+    ctx.fillStyle=a.skin;
+    ctx.fillRect(-8,-19-bob-swing*0.8,2.5,7);ctx.fillRect(5.5,-19-bob+swing*0.8,2.5,7);
+    ctx.fillStyle=a.shirt;roundRect(ctx,-6,-20-bob,12,13,4);ctx.fill();
+    ctx.fillStyle=a.student?'rgba(30,58,95,.25)':'rgba(255,255,255,.25)';roundRect(ctx,-6,-20-bob,12,4,3);ctx.fill();
+    const hy=-25-bob;
+    ctx.fillStyle=a.skin;ctx.beginPath();ctx.arc(0,hy,6.5,0,7);ctx.fill();
+    const back=this.dir>=5&&this.dir<=7;
+    ctx.fillStyle=a.hair;
+    if(back){ctx.beginPath();ctx.arc(0,hy-0.5,6.8,0,7);ctx.fill();}
+    else{ctx.beginPath();ctx.arc(0,hy-1,6.8,Math.PI*1.02,Math.PI*1.98);ctx.fill();}
+    if(a.style===1){ctx.fillRect(-8,hy-3,2.6,9);ctx.fillRect(5.4,hy-3,2.6,9);}
+    if(a.style===2){ctx.beginPath();ctx.arc(0,hy-7.5,3,0,7);ctx.fill();}
+    if(!back){const e=EYE[this.dir];ctx.fillStyle='#222';
+      ctx.beginPath();ctx.arc(e[0],hy+1,1,0,7);ctx.arc(e[1],hy+1,1,0,7);ctx.fill();}
+    ctx.restore();
+    return wy;
+  }
+}
+class Critter{
+  constructor(name,emoji,desc,speed){this.name=name;this.emoji=emoji;this.desc=desc;this.speed=speed;
+    const s=YARD[rnd()%YARD.length];this.fx=s.x;this.fy=s.y;this.path=[];this.wait=1;this.ph=rnd()%10;}
+  update(dt){
+    if(this.path.length){
+      const n=this.path[0],dx=n.x-this.fx,dy=n.y-this.fy,d=Math.hypot(dx,dy),st=this.speed*dt;
+      if(d<=st){this.fx=n.x;this.fy=n.y;this.path.shift();}
+      else{this.fx+=dx/d*st;this.fy+=dy/d*st;}
+      this.ph+=dt*8;this.moving=true;
+    }else{this.moving=false;this.wait-=dt;
+      if(this.wait<=0){this.wait=2+Math.random()*6;
+        const g=YARD[(Math.random()*YARD.length)|0];
+        this.path=bfs(Math.round(this.fx),Math.round(this.fy),g.x,g.y);}}
+  }
+  draw(){
+    const[wx,wy]=iso(this.fx,this.fy);
+    const bob=this.moving?Math.abs(Math.sin(this.ph))*1.8:Math.sin(last/700+this.ph)*0.5;
+    ctx.fillStyle='rgba(0,0,0,.2)';ctx.beginPath();ctx.ellipse(wx,wy,7,3.2,0,0,7);ctx.fill();
+    ctx.font='15px "Segoe UI Emoji"';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(this.emoji,wx,wy-8-bob);
+    return wy;
+  }
+}
+
+// ================= สถานะ =================
+let day=0,slot=1,chars=[],critters=[],hlId=-1,last=0,showNames=true;
+const popup=document.getElementById('popup');
+function assign(){
+  TEACHERS.forEach(t=>{t.room=roomOf(t,day,slot)||'staff';});
+  STUDENTS.forEach(s=>{s.room=studentRoomOf(s,slot);});
+}
+function updateStat(){
+  const per=PERIODS[slot];let msg;
+  if(per.assembly)msg=`🚩 เข้าแถวเคารพธงชาติทั้งโรงเรียน`;
+  else if(per.lunch)msg=`🍚 พักเที่ยง · นักเรียนวิ่งเล่นสนาม`;
+  else{let teach=0,free=0;
+    TEACHERS.forEach(t=>{roomOf(t,day,slot)?teach++:free++;});
+    msg=`สอนอยู่ <b>${teach}</b> · พัก <b>${free}</b>`;}
+  document.getElementById('stat').innerHTML=`${msg} · ครู <b>${TEACHERS.length}</b> นร. <b>${STUDENTS.length}</b>`;}
+function setSlot(){const per=PERIODS[slot];
+  document.getElementById('slider').value=slot;
+  document.getElementById('slotLabel').innerHTML=`${DAYS[day]} · ${per.label}<small>${per.s} – ${per.e}</small>`;
+  assign();
+  if(per.assembly)chars.forEach((c,i)=>c.gotoTile(FORM[i%FORM.length]));
+  else chars.forEach(c=>c.goto(c.a.room));
+  updateStat();}
+
+// เสียงกริ่ง (ติ๊งต่อง ×2)
+let AC=null;
+function bellRing(){
+  if(!document.getElementById('bell').checked)return;
+  try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();
+    const t0=AC.currentTime;
+    [[784,0],[659,0.45],[784,0.9],[659,1.35]].forEach(([f,dt])=>{
+      const o=AC.createOscillator(),g=AC.createGain();
+      o.type='sine';o.frequency.value=f;
+      g.gain.setValueAtTime(0.0001,t0+dt);
+      g.gain.exponentialRampToValueAtTime(0.22,t0+dt+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,t0+dt+0.42);
+      o.connect(g);g.connect(AC.destination);o.start(t0+dt);o.stop(t0+dt+0.45);});
+  }catch(e){}}
+
+function emoteOf(c){
+  if(last/1000-c.clickT<1.6)return'❗';
+  if(c.moving)return null;
+  const a=c.a,ty=ROOM_BY_ID[a.room].type;
+  if(ty==='plaza')return'🎵';
+  if(ty==='canteen')return'🍚';
+  if(a.student)return{sport:a.id%2?'⚽':'🏃',classroom:'📓'}[ty]||'📓';
+  if(ty==='staff')return['☕','💤','📱','📖'][a.id%4];
+  if(ty==='classroom')return GEMOTE[a.group];
+  return{sport:'⚽',art:'🎨',music:'🎵',computer:'💻',science:'🔬',library:'📖'}[ty]||'✏️';
+}
+
+// ================= game loop =================
+function frame(ts){const dt=Math.min(0.05,(ts-last)/1000||0);last=ts;
+  ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.setTransform(cam.s,0,0,cam.s,cam.x,cam.y);
+  ctx.drawImage(bg,bgOX,bgOY);
+  chars.forEach(c=>c.update(dt));critters.forEach(c=>c.update(dt));
+  const ents=[],tags=[];
+  ROOMS.forEach(r=>{ents.push({d:r.gx+r.gy+0.01,f:()=>drawBack(r)});
+    if(r.type!=='sport')ents.push({d:r.gx+r.gw+r.gy+r.gh-0.01,f:()=>drawFront(r)});});
+  chars.forEach(c=>ents.push({d:c.fx+c.fy,f:()=>{const wy=c.draw();
+    tags.push({wx:iso(c.fx,c.fy)[0],wy,c});}}));
+  critters.forEach(c=>ents.push({d:c.fx+c.fy,f:()=>{const wy=c.draw();
+    tags.push({wx:iso(c.fx,c.fy)[0],wy,cr:c});}}));
+  ents.push({d:FLAGP.x+FLAGP.y,f:drawFlag});
+  ents.sort((a,b)=>a.d-b.d).forEach(e=>e.f());
+  // ป้ายชื่อ + อีโมต
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  tags.forEach(g=>{
+    if(g.cr){ctx.font='9px Leelawadee UI';const w=ctx.measureText(g.cr.name).width+7;
+      ctx.fillStyle='rgba(20,22,34,.55)';roundRect(ctx,g.wx-w/2,g.wy-31,w,11,4);ctx.fill();
+      ctx.fillStyle='#fff';ctx.fillText(g.cr.name,g.wx,g.wy-25.5);return;}
+    const c=g.c,a=c.a,sc=a.scale,nameY=g.wy-45*sc;
+    const showThis=showNames&&(!a.student||cam.s>1.1);
+    if(showThis){ctx.font=(a.student?'9':'10')+'px Leelawadee UI';
+      const w=ctx.measureText(a.name).width+8;
+      ctx.fillStyle=a.id===hlId?'rgba(245,158,11,.95)':(a.student?'rgba(30,58,95,.7)':'rgba(20,22,34,.7)');
+      roundRect(ctx,g.wx-w/2,nameY,w,13,4);ctx.fill();
+      ctx.fillStyle='#fff';ctx.fillText(a.name,g.wx,nameY+6.5);}
+    const em=emoteOf(c);
+    if(em&&(((last/1000)*0.35+a.id*0.37)%1<0.45||em==='❗')){
+      const by=nameY-(showThis?20:4);
+      ctx.fillStyle='rgba(255,255,255,.95)';ctx.strokeStyle='#c9c2b0';
+      roundRect(ctx,g.wx-11,by,22,18,6);ctx.fill();ctx.stroke();
+      ctx.beginPath();ctx.moveTo(g.wx-3,by+17);ctx.lineTo(g.wx+3,by+17);ctx.lineTo(g.wx,by+22);ctx.closePath();
+      ctx.fillStyle='rgba(255,255,255,.95)';ctx.fill();
+      ctx.font='11px "Segoe UI Emoji"';ctx.fillStyle='#000';ctx.fillText(em,g.wx,by+9.5);}
+  });
+  if(hlId>=0){const c=chars.find(c=>c.a.id===hlId);
+    if(c){const[wx,wy]=iso(c.fx,c.fy);
+      const on=(grid[Math.round(c.fy)]?.[Math.round(c.fx)]?.plot)?PH:0;
+      ctx.strokeStyle='#f59e0b';ctx.lineWidth=2;
+      ctx.beginPath();ctx.ellipse(wx,wy-on,12,6,0,0,7);ctx.stroke();ctx.lineWidth=1;}}
+  drawClouds();
+  const TINT=['rgba(255,200,120,.10)','rgba(255,205,130,.06)','rgba(255,220,160,.03)','',
+    'rgba(255,250,210,.05)','','rgba(255,180,110,.05)','rgba(255,140,80,.11)'][slot];
+  if(TINT){ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle=TINT;ctx.fillRect(0,0,cv.width,cv.height);}
+  requestAnimationFrame(frame);
+}
+function drawFlag(){
+  const[fx,fy]=iso(FLAGP.x,FLAGP.y);
+  ctx.fillStyle='rgba(0,0,0,.2)';ctx.beginPath();ctx.ellipse(fx,fy,8,3.5,0,0,7);ctx.fill();
+  ctx.fillStyle='#d9d2c0';ctx.beginPath();ctx.ellipse(fx,fy-2,6,3,0,0,7);ctx.fill();
+  ctx.fillStyle='#9aa3ad';ctx.fillRect(fx-1.5,fy-64,3,62);
+  ctx.fillStyle='#c9d1d9';ctx.beginPath();ctx.arc(fx,fy-65,2.5,0,7);ctx.fill();
+  const t=last/1000,cols=['#EF3340','#fff','#2E3192','#fff','#EF3340'],hs=[3.5,3.5,7,3.5,3.5];
+  let yy=fy-62;
+  cols.forEach((col,i)=>{
+    for(let s=0;s<6;s++){const x0=fx+1.5+s*4.6,x1=x0+4.6;
+      const w0=Math.sin(t*5+s*0.9)*1.6*(s/6),w1=Math.sin(t*5+(s+1)*0.9)*1.6*((s+1)/6);
+      quad(ctx,[x0,yy+w0],[x1,yy+w1],[x1,yy+hs[i]+w1],[x0,yy+hs[i]+w0],col);}
+    yy+=hs[i];});
+}
+function drawClouds(){
+  const t=last/1000;
+  for(let i=0;i<3;i++){
+    const w=bg.width+400,cx=bgOX-200+((t*12+i*617)%w),cy=bgOY+140+i*260;
+    ctx.fillStyle='rgba(0,0,30,.05)';
+    ctx.beginPath();ctx.ellipse(cx,cy,90,38,0,0,7);ctx.fill();
+    ctx.beginPath();ctx.ellipse(cx+65,cy+12,55,26,0,0,7);ctx.fill();}
+}
+
+// ================= กล้อง + คลิก =================
+function fitCam(){let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
+  [[0,0],[GW,0],[0,GH],[GW,GH]].forEach(([x,y])=>{const[wx,wy]=iso(x,y);
+    minX=Math.min(minX,wx);maxX=Math.max(maxX,wx);minY=Math.min(minY,wy);maxY=Math.max(maxY,wy);});
+  const mw=maxX-minX+80,mh=maxY-minY+180;
+  cam.s=Math.min(cv.width/mw,cv.height/mh)*0.97;
+  cam.x=cv.width/2-(minX+maxX)/2*cam.s;cam.y=cv.height/2-(minY+maxY)/2*cam.s+40;}
+function screenToWorld(sx,sy){const r=cv.getBoundingClientRect();
+  return[(sx-r.left-cam.x)/cam.s,(sy-r.top-cam.y)/cam.s];}
+function worldToTile(wx,wy){return{x:Math.round((wx/TW2+wy/TH2)/2),y:Math.round((wy/TH2-wx/TW2)/2)};}
+
+let drag=null;
+cv.addEventListener('mousedown',e=>{drag={x:e.clientX,y:e.clientY,cx:cam.x,cy:cam.y,moved:false};cv.classList.add('drag');});
+addEventListener('mousemove',e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+  if(Math.abs(dx)+Math.abs(dy)>4)drag.moved=true;cam.x=drag.cx+dx;cam.y=drag.cy+dy;});
+addEventListener('mouseup',e=>{if(drag&&!drag.moved)click(e);drag=null;cv.classList.remove('drag');});
+cv.addEventListener('wheel',e=>{e.preventDefault();const[wx,wy]=screenToWorld(e.clientX,e.clientY);
+  const ns=Math.max(0.35,Math.min(2.6,cam.s*(e.deltaY<0?1.12:0.89)));
+  const r=cv.getBoundingClientRect();cam.x=e.clientX-r.left-wx*ns;cam.y=e.clientY-r.top-wy*ns;cam.s=ns;},{passive:false});
+
+function closePopup(){popup.style.display='none';hlId=-1;}
+function click(e){const[wx,wy]=screenToWorld(e.clientX,e.clientY);
+  let best=null,bd=20;
+  chars.forEach(c=>{const[cx,cy]=iso(c.fx,c.fy);
+    const on=(grid[Math.round(c.fy)]?.[Math.round(c.fx)]?.plot)?PH:0;
+    const d=Math.hypot(wx-cx,wy-(cy-on-16*c.a.scale));if(d<bd){bd=d;best={c};}});
+  critters.forEach(c=>{const[cx,cy]=iso(c.fx,c.fy);
+    const d=Math.hypot(wx-cx,wy-(cy-8));if(d<bd){bd=d;best={cr:c};}});
+  if(best?.c){best.c.clickT=last/1000;showPerson(best.c,e);return;}
+  if(best?.cr){showCritter(best.cr,e);return;}
+  const tl=worldToTile(wx,wy+PH/2),cell=grid[tl.y]?.[tl.x];
+  if(cell&&cell.plot){showRoom(cell.plot,e);return;}
+  closePopup();}
+function place(e){popup.style.left=Math.min(e.clientX+12,innerWidth-300)+'px';
+  popup.style.top=Math.min(e.clientY+12,innerHeight-240)+'px';popup.style.display='block';}
+function showPerson(c,e){const a=c.a;hlId=a.id;
+  if(a.student){
+    popup.innerHTML=`<span class="close" onclick="closePopup()">✕</span>
+      <h3>${a.name}</h3><span class="tag" style="background:#1e3a5f">นักเรียน ${ROOM_BY_ID[a.home].label}</span>
+      <div class="row">ตอนนี้: <b>${ROOM_BY_ID[a.room].label}</b></div>`;
+  }else{
+    const g=GROUPS[a.group];
+    const rows=PERIODS.map((p,i)=>{
+      if(p.assembly)return`<li>${p.label}</li>`;
+      if(p.lunch)return`<li>พักเที่ยง</li>`;
+      const e=schedOf(a,day,i);
+      const w=e.rid?`${e.subj} (${e.cls||ROOM_BY_ID[e.rid].label})`:'— ว่าง —';
+      return`<li>${p.label}: ${w}</li>`;}).join('');
+    popup.innerHTML=`<span class="close" onclick="closePopup()">✕</span>
+      <h3>${a.name}</h3><span class="tag" style="background:${g.color}">${g.name}</span>
+      <div class="row">ตอนนี้: <b>${ROOM_BY_ID[a.room].label}</b></div>
+      <div class="row" style="margin-top:6px">ตารางวัน${DAYS[day]}:</div><ul>${rows}</ul>`;}
+  place(e);}
+function showRoom(rid,e){const r=ROOM_BY_ID[rid];hlId=-1;
+  const ts=TEACHERS.filter(t=>t.room===rid),ss=STUDENTS.filter(s=>s.room===rid);
+  popup.innerHTML=`<span class="close" onclick="closePopup()">✕</span>
+    <h3>${TYPE_ICON[r.type]} ${r.label}</h3>
+    <div class="row">ครู <b>${ts.length}</b> · นักเรียน <b>${ss.length}</b></div>
+    <ul>${ts.map(t=>`<li>${t.name}</li>`).join('')+ss.map(s=>`<li>🎒 ${s.name}</li>`).join('')||'<li>— ว่าง —</li>'}</ul>`;
+  place(e);}
+function showCritter(c,e){hlId=-1;
+  popup.innerHTML=`<span class="close" onclick="closePopup()">✕</span>
+    <h3>${c.emoji} ${c.name}</h3><div class="row">${c.desc}</div>`;place(e);}
+
+// ================= UI =================
+function buildUI(){
+  const dd=document.getElementById('days');
+  DAYS.forEach((d,i)=>{const b=document.createElement('button');b.textContent=d;
+    b.onclick=()=>{day=i;syncDays();setSlot();};dd.appendChild(b);});
+  document.getElementById('legend').innerHTML=GROUPS.map(g=>
+    `<span class="li"><span class="dot" style="background:${g.color}"></span>${g.name}</span>`).join('')
+    +`<span class="li"><span class="dot" style="background:#1e3a5f"></span>นักเรียน</span>`;
+  const sl=document.getElementById('slider');sl.max=PERIODS.length-1;
+  sl.oninput=()=>{if(+sl.value!==slot){slot=+sl.value;bellRing();setSlot();}};
+  document.getElementById('names').onchange=e=>showNames=e.target.checked;
+  document.getElementById('nowBtn').onclick=()=>{const dow=new Date().getDay();
+    day=(dow>=1&&dow<=5)?dow-1:0;const n=new Date(),m=n.getHours()*60+n.getMinutes();let b=0;
+    PERIODS.forEach((p,i)=>{const[h,mm]=p.s.split(':').map(Number);if(m>=h*60+mm)b=i;});
+    if(b!==slot){slot=b;bellRing();}
+    syncDays();setSlot();};
+}
+function syncDays(){document.querySelectorAll('#days button').forEach((b,i)=>b.classList.toggle('on',i===day));}
+
+// ================= self-check =================
+function selfCheck(){let ok=true;
+  TEACHERS.forEach(t=>{for(let d=0;d<5;d++)for(let p=0;p<PERIODS.length;p++){const r=roomOf(t,d,p);
+    if(r!==null&&!ROOM_BY_ID[r]){console.error('ห้องไม่มี:',r,t.full);ok=false;}}});
+  for(const rid in DOOR){const d=DOOR[rid];
+    if(grid[d.y][d.x].desk){console.error('โต๊ะขวางประตู:',rid);ok=false;}
+    if(!walkable(d.x,d.y+1)||grid[d.y+1][d.x].plot){console.error('หน้าประตูตัน:',rid);ok=false;}}
+  ROOMS.forEach(r=>{ // ทุกช่องเดินได้ในห้องต้องถึงประตู (โต๊ะไม่ปิดทาง)
+    if(r.type==='sport')return;const d=DOOR[r.id];
+    walkTiles[r.id].forEach(t=>{if(!bfs(t.x,t.y,d.x,d.y).length&&(t.x!==d.x||t.y!==d.y)){
+      console.error('โต๊ะปิดทางใน',r.id,t);ok=false;}});});
+  const p1=bfs(DOOR.P11.x,DOOR.P11.y,DOOR.artmus.x,DOOR.artmus.y);
+  const p2=bfs(DOOR.staff.x,DOOR.staff.y,FORM[0].x,FORM[0].y);
+  console.assert(p1.length>0&&p2.length>0,'❌ เดินข้ามอาคาร/ไปลานเสาธงไม่ได้');
+  console.assert(chars.length===TEACHERS.length+STUDENTS.length,'จำนวนตัวละครไม่ครบ');
+  console.log(ok&&p1.length&&p2.length?'✅ self-check ผ่าน — ประตู/โต๊ะ/ลานเสาธง เดินถึงหมด':'❌ self-check ล้มเหลว');
+}
+
+// ================= start =================
+addEventListener('resize',()=>{resize();fitCam();});
+resize();prerender();buildUI();syncDays();
+assign();
+chars=[...TEACHERS,...STUDENTS].map(a=>new Char(a));
+critters=[new Critter('เจ้าด่าง','🐕','หมาประจำโรงเรียน ชอบวิ่งเล่นสนาม',2.2),
+          new Critter('ส้มโอ','🐈','แมวส้มขี้อ้อน ประจำห้องพักครู',1.6),
+          new Critter('ไข่ต้ม','🐓','ไก่หลงมา อยู่ยาวจนเป็นขาประจำ',1.3)];
+setSlot();fitCam();selfCheck();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
