@@ -174,6 +174,14 @@ const STUDENTS=SCHOOL.students.map((st,i)=>({id:100+i,name:st.n,home:st.c,studen
   scale:st.c[0]==='C'?0.88:0.7+(+st.c[1]||1)*0.02,
   ...gateFieldsFor(100+i,true),
   leaveT:(st.c[0]==='C'?960:930)+hash(100+i,17,19)%30}));     // ม.16:00-16:30 / ป.15:30-16:00
+const DIRECTORS=[
+  {id:9000,name:'ผอ.',full:'ผู้อำนวยการ',group:0,lv:1,director:true,
+   skin:SKIN[0],hair:HAIR[0],style:2,shirt:'#1e3a5f',pants:'#2b2b2b',scale:1.05,
+   arriveT:420,leaveT:1080,gate:'front',gatherAt:465},
+  {id:9001,name:'รองผอ.',full:'รองผู้อำนวยการ',group:0,lv:1,director:true,
+   skin:SKIN[1],hair:HAIR[1],style:1,shirt:'#1e3a5f',pants:'#2b2b2b',scale:1.0,
+   arriveT:430,leaveT:1080,gate:'front',gatherAt:465},
+];
 
 function hash(a,b,c){let x=(Math.imul(a,73856093)^Math.imul(b,19349663)^Math.imul(c,83492791))>>>0;
   x=Math.imul(x^(x>>>15),2246822507);x^=x>>>13;return x>>>0;}
@@ -537,9 +545,19 @@ class Critter{
 let day=0,tm=510,chars=[],critters=[],hlId=-1,last=0,showNames=true,nowMode=false,lastKey=null;
 const popup=document.getElementById('popup');
 function present(a,tm_){return tm_>=a.arriveT&&tm_<a.leaveT;}
+let _patrolNext={9000:0,9001:0};
+const PATROL_ROOMS=['office',...CLASSROOMS,'staff','staff2','m_staff','library','canteen'];
 function assign(){
   TEACHERS.forEach(t=>{t.room=present(t,tm)?(schedOf(t,day,tm).rid||STAFF_OF[t.lv]):null;});
   STUDENTS.forEach(s=>{s.room=present(s,tm)?studentRoomOf(s,day,tm):null;});
+  DIRECTORS.forEach(dr=>{
+    if(!present(dr,tm)){dr.room=null;return;}
+    if(t_mCrossed(dr))dr.room=PATROL_ROOMS[hash(dr.id,day,(tm/20|0))%PATROL_ROOMS.length];
+    else dr.room=dr.room||'office';
+  });
+}
+function t_mCrossed(dr){ // เปลี่ยนห้องทุก ~20 นาที (สุ่มคงที่ต่อช่วง ไม่ใช่ทุกเฟรม)
+  const slot=tm/20|0;if(_patrolNext[dr.id]===slot)return false;_patrolNext[dr.id]=slot;return true;
 }
 function zoneDesc(){
   if(inAsm(tm))return'🚩 เข้าแถวเคารพธงชาติ';
@@ -796,7 +814,7 @@ function selfCheck(){let ok=true;
   const p1=bfs(DOOR.P11.x,DOOR.P11.y,DOOR.m_staff.x,DOOR.m_staff.y); // ข้ามโซน ป.→ม.
   const p2=bfs(DOOR.staff.x,DOOR.staff.y,FORM[0].x,FORM[0].y);
   console.assert(p1.length>0&&p2.length>0,'❌ เดินข้ามโซน/ไปลานเสาธงไม่ได้');
-  console.assert(chars.length===TEACHERS.length+STUDENTS.length,'จำนวนตัวละครไม่ครบ');
+  console.assert(chars.length===TEACHERS.length+STUDENTS.length+DIRECTORS.length,'จำนวนตัวละครไม่ครบ');
   console.assert(FORM.length>=chars.length,'❌ ลานเสาธงเล็กกว่าจำนวนคน '+FORM.length+'/'+chars.length);
   // ห้ามมีสองห้องทับกัน
   const occ={};
@@ -815,7 +833,7 @@ addEventListener('resize',()=>{resize();fitCam();});
 resize();prerender();buildUI();
 ({day,tm}=realDayTm()); // เวลาจริงก่อน assign()/สร้าง Char ตัวแรก กัน prev เพี้ยนจาก tm ค่าเริ่มต้น
 assign();
-chars=[...TEACHERS,...STUDENTS].map(a=>new Char(a));
+chars=[...TEACHERS,...STUDENTS,...DIRECTORS].map(a=>new Char(a));
 critters=[new Critter('เจ้าด่าง','🐕','หมาประจำโรงเรียน ชอบวิ่งเล่นสนาม',2.2,()=>'โฮ่ง!'),
           new Critter('ส้มโอ','🐈','แมวส้มขี้อ้อน ประจำห้องพักครู',1.6,()=>'เหมียว~'),
           new Critter('ไข่ต้ม','🐓','ไก่หลงมา อยู่ยาวจนเป็นขาประจำ',1.3,t=>t<420?'เอ้กอีเอ้กเอ้ก!':'กระต๊ากๆ')];

@@ -112,6 +112,7 @@ function run() {
           if(shouldBePresent && a.room===null) console.error('หายไปทั้งที่ควรอยู่:',a.id,t);
           if(!shouldBePresent && a.room!==null) console.error('อยู่ทั้งที่ควรกลับ/ยังไม่มา:',a.id,t);
         });
+        DIRECTORS.forEach(dr=>{ if(present(dr,t) && !ROOM_BY_ID[dr.room]) console.error('ผอ./รองผอ. อยู่ห้องที่ไม่มีจริง:',dr.id,dr.room,t); });
       }
       if(present(TEACHERS[0],500)===false) console.error('present() ผิดพลาดที่ 500min');
     `, sandbox, { filename: 'sweep.js', timeout: 10000 });
