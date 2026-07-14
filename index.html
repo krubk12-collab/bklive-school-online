@@ -326,8 +326,13 @@ function roundRect(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,
 
 const mainEl=document.querySelector('main');
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
-let cam={x:0,y:0,s:1};
-function resize(){cv.width=innerWidth;cv.height=mainEl.clientHeight;}
+let cam={x:0,y:0,s:1},dpr=1,logW=0,logH=0;
+function resize(){
+  dpr=window.devicePixelRatio||1;
+  logW=innerWidth;logH=mainEl.clientHeight;
+  cv.width=Math.round(logW*dpr);cv.height=Math.round(logH*dpr);
+  cv.style.width=logW+'px';cv.style.height=logH+'px';
+}
 
 // ---- prerender พื้น+เฟอร์นิเจอร์ (ครั้งเดียว) ----
 let bg,bgOX,bgOY;
@@ -667,8 +672,8 @@ function emoteOf(c){
 
 // ================= game loop =================
 function frame(ts){const dt=Math.min(0.05,(ts-last)/1000||0);last=ts;
-  ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,cv.width,cv.height);
-  ctx.setTransform(cam.s,0,0,cam.s,cam.x,cam.y);
+  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.setTransform(cam.s*dpr,0,0,cam.s*dpr,cam.x*dpr,cam.y*dpr);
   ctx.drawImage(bg,bgOX,bgOY);
   chars.forEach(c=>{if(c.hasArrived&&!c.gone)c.update(dt);});critters.forEach(c=>c.update(dt));
   const ents=[],tags=[];
@@ -720,7 +725,7 @@ function frame(ts){const dt=Math.min(0.05,(ts-last)/1000||0);last=ts;
     tm<1020?'rgba(255,140,80,.11)':        // ~16:30-17:00 พลบเริ่ม
     tm<1080?'rgba(200,90,70,.20)':         // ~17:00-18:00 ส้มพลบค่ำเข้ม
     'rgba(20,25,55,.45)';                  // 18:00+ มืดน้ำเงินเข้ม
-  if(TINT){ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle=TINT;ctx.fillRect(0,0,cv.width,cv.height);}
+  if(TINT){ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle=TINT;ctx.fillRect(0,0,logW,logH);}
   requestAnimationFrame(frame);
 }
 function drawFlag(){
@@ -747,12 +752,16 @@ function drawClouds(){
 }
 
 // ================= กล้อง + คลิก =================
-function fitCam(){let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
-  [[0,0],[GW,0],[0,GH],[GW,GH]].forEach(([x,y])=>{const[wx,wy]=iso(x,y);
+const CORE_BOUNDS={x1:0,y1:0,x2:100,y2:90}; // ตัดวัด+คลองท้ายแผนที่ออกจากมุมมองเริ่มต้นบนจอแคบ
+function fitCam(){
+  const mobile=logW<700;
+  const b=mobile?CORE_BOUNDS:{x1:0,y1:0,x2:GW,y2:GH};
+  let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
+  [[b.x1,b.y1],[b.x2,b.y1],[b.x1,b.y2],[b.x2,b.y2]].forEach(([x,y])=>{const[wx,wy]=iso(x,y);
     minX=Math.min(minX,wx);maxX=Math.max(maxX,wx);minY=Math.min(minY,wy);maxY=Math.max(maxY,wy);});
   const mw=maxX-minX+80,mh=maxY-minY+180;
-  cam.s=Math.min(cv.width/mw,cv.height/mh)*0.97;
-  cam.x=cv.width/2-(minX+maxX)/2*cam.s;cam.y=cv.height/2-(minY+maxY)/2*cam.s+40;}
+  cam.s=Math.min(logW/mw,logH/mh)*0.97;
+  cam.x=logW/2-(minX+maxX)/2*cam.s;cam.y=logH/2-(minY+maxY)/2*cam.s+40;}
 function screenToWorld(sx,sy){const r=cv.getBoundingClientRect();
   return[(sx-r.left-cam.x)/cam.s,(sy-r.top-cam.y)/cam.s];}
 function worldToTile(wx,wy){return{x:Math.round((wx/TW2+wy/TH2)/2),y:Math.round((wy/TH2-wx/TW2)/2)};}
@@ -762,8 +771,7 @@ function filterPeople(q){
   return[...TEACHERS,...STUDENTS].filter(a=>a.name.includes(q)||(a.full&&a.full.includes(q))).slice(0,40);
 }
 function focusOn(x,y){const[wx,wy]=iso(x,y);
-  // note: Task 9 introduces devicePixelRatio scaling (dpr) — revisit this centering math then
-  cam.x=cv.width/2-wx*cam.s;cam.y=cv.height/2-wy*cam.s;}
+  cam.x=logW/2-wx*cam.s;cam.y=logH/2-wy*cam.s;}
 
 let drag=null;
 cv.addEventListener('mousedown',e=>{drag={x:e.clientX,y:e.clientY,cx:cam.x,cy:cam.y,moved:false};cv.classList.add('drag');});
@@ -902,6 +910,9 @@ function selfCheck(){let ok=true;
   console.assert(pGate.length>0,'❌ เดินจากประตูหน้าไปห้องผู้บริหารไม่ได้');
   const pBack=bfs(GATE_BACK.x,GATE_BACK.y,FORM[0].x,FORM[0].y);
   console.assert(pBack.length>0,'❌ เดินจากประตูหลังไปโดมไม่ได้');
+  console.assert(GW===100&&GH===112,'❌ ขนาดแผนที่ไม่ตรงสเปก');
+  console.assert(!!ROOM_BY_ID.gym&&!!ROOM_BY_ID.library&&!!ROOM_BY_ID.playground&&!!ROOM_BY_ID.m_sci2&&!!ROOM_BY_ID.temple,
+    '❌ ห้องใหม่หายไป');
   console.log(ok&&p1.length&&p2.length?'✅ self-check ผ่าน — ประตู/โต๊ะ/ข้ามโซน/ลานเสาธง เดินถึงหมด':'❌ self-check ล้มเหลว');
 }
 
