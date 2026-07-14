@@ -934,7 +934,8 @@ function selfCheck(){let ok=true;
   console.assert(!!ROOM_BY_ID.gym&&!!ROOM_BY_ID.library&&!!ROOM_BY_ID.playground&&!!ROOM_BY_ID.m_sci2&&!!ROOM_BY_ID.temple,
     '❌ ห้องใหม่หายไป');
   console.assert(!walkable(CAMPUS_RECT.x1,40),'❌ กำแพงฝั่งตะวันตกไม่ปิดกั้น');
-  console.assert(walkable(50,CAMPUS_RECT.y1)||walkable(50,CAMPUS_RECT.y1+1),'❌ ช่องประตูหน้าไม่เปิด');
+  console.assert(walkable(50,CAMPUS_RECT.y1),'❌ ช่องประตูหน้าไม่เปิด');
+  console.assert(walkable(80,CAMPUS_RECT.y2),'❌ ช่องประตูหลังไม่เปิด');
   console.log(ok&&p1.length&&p2.length?'✅ self-check ผ่าน — ประตู/โต๊ะ/ข้ามโซน/ลานเสาธง เดินถึงหมด':'❌ self-check ล้มเหลว');
 }
 
