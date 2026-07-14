@@ -447,7 +447,7 @@ function drawFront(r){
 const EYE={0:[2,4.6],1:[-0.5,3.2],2:[-2.2,2.2],3:[-3.2,0.5],4:[-4.6,-2]};
 const gateOf=g=>g==='back'?GATE_BACK:GATE_FRONT;
 function boardSpotFor(rid){
-  const r=ROOM_BY_ID[rid];if(!r||r.type!=='classroom')return null;
+  const r=ROOM_BY_ID[rid];if(!r||!['classroom','computer','science'].includes(r.type))return null;
   return{x:r.gx+(r.gw>>1),y:r.gy+1}; // ใกล้ผนังกระดานดำที่วาดใน drawBack (กึ่งกลาง A-B)
 }
 class Char{
