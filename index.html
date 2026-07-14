@@ -379,7 +379,9 @@ function prerender(){
 }
 
 // ---- อาคาร (วาดทุกเฟรม เรียง depth) ----
+function shopActiveNow(){return tm<480||tm>=900;} // 06:00-08:00 หรือ 15:00-18:00
 function drawBack(r){
+  if(r.type==='shop'&&!shopActiveNow())return;
   const A=iso(r.gx,r.gy),B=iso(r.gx+r.gw,r.gy),D=iso(r.gx,r.gy+r.gh);
   const pA=[A[0],A[1]-PH],pB=[B[0],B[1]-PH],pD=[D[0],D[1]-PH];
   if(!OPEN_TYPES.includes(r.type)){
@@ -413,7 +415,7 @@ function drawBack(r){
   ctx.fillStyle='#1f2937';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(tx,pA[0],sy-28);
 }
 function drawFront(r){
-  if(OPEN_TYPES.includes(r.type))return;
+  if(OPEN_TYPES.includes(r.type)||(r.type==='shop'&&!shopActiveNow()))return;
   const B=iso(r.gx+r.gw,r.gy),C=iso(r.gx+r.gw,r.gy+r.gh),D=iso(r.gx,r.gy+r.gh);
   const pB=[B[0],B[1]-PH],pC=[C[0],C[1]-PH],pD=[D[0],D[1]-PH];
   const RRH=7,d=DOOR[r.id];
@@ -444,6 +446,10 @@ function drawFront(r){
 // ================= ตัวละคร =================
 const EYE={0:[2,4.6],1:[-0.5,3.2],2:[-2.2,2.2],3:[-3.2,0.5],4:[-4.6,-2]};
 const gateOf=g=>g==='back'?GATE_BACK:GATE_FRONT;
+function boardSpotFor(rid){
+  const r=ROOM_BY_ID[rid];if(!r||r.type!=='classroom')return null;
+  return{x:r.gx+(r.gw>>1),y:r.gy+1}; // ใกล้ผนังกระดานดำที่วาดใน drawBack (กึ่งกลาง A-B)
+}
 class Char{
   constructor(a){this.a=a;this.hasArrived=a.room!=null;this.prev=a.room;a.room=a.room||'staff';const s=randTileIn(a.room);
     this.fx=s.x;this.fy=s.y;this.path=[];this.dir=2;this.phase=0;
@@ -468,6 +474,10 @@ class Char{
       this.moving=false;
       if(this.leaving){this.gone=true;return;}
       if(this.a.room==='dome'){this.dir=6;return;} // เข้าแถว หันหน้าเข้าเสาธง
+      if(this.teaching)return; // กำลังสอน → ยืนหน้ากระดาน ไม่เดินสุ่ม
+      const inLesson=this.a.student && ROOM_BY_ID[this.a.room]?.type==='classroom' &&
+        studentRoomOf(this.a,day,tm)===this.a.home && zP(this.a.mz?MPER:PPER,tm)?.n && !zP(this.a.mz?MPER:PPER,tm)?.lunch;
+      if(inLesson)return; // มีคาบเรียนอยู่ → นั่งนิ่งที่โต๊ะ ไม่เดินสุ่ม
       this.wander-=dt;
       if(this.wander<=0){this.wander=inSport?0.4+Math.random():2+Math.random()*5;
         const ts=walkTiles[this.a.room],g=ts[(Math.random()*ts.length)|0],s=this.tile;
@@ -498,6 +508,7 @@ class Char{
     if(a.style===2){ctx.beginPath();ctx.arc(0,hy-7.5,3,0,7);ctx.fill();}
     if(!back){const e=EYE[this.dir];ctx.fillStyle='#222';
       ctx.beginPath();ctx.arc(e[0],hy+1,1,0,7);ctx.arc(e[1],hy+1,1,0,7);ctx.fill();}
+    if(a.director!==true&&this.teaching){ctx.fillStyle=a.skin;ctx.fillRect(-9,-24-bob,2.5,6);} // ยกแขนชี้กระดาน
     ctx.restore();
     return wy;
   }
@@ -555,6 +566,11 @@ function assign(){
     if(t_mCrossed(dr))dr.room=PATROL_ROOMS[hash(dr.id,day,(tm/20|0))%PATROL_ROOMS.length];
     else dr.room=dr.room||'office';
   });
+  const t013=TEACHERS.find(t=>/ณัฐธเนศ/.test(t.full));
+  if(t013&&present(t013,tm)){
+    const ownLunch=zP(t013.lv===2?MPER:PPER,tm);
+    if(ownLunch&&ownLunch.lunch)t013.room='store711';
+  }
 }
 function t_mCrossed(dr){ // เปลี่ยนห้องทุก ~20 นาที (สุ่มคงที่ต่อช่วง ไม่ใช่ทุกเฟรม)
   const slot=tm/20|0;if(_patrolNext[dr.id]===slot)return false;_patrolNext[dr.id]=slot;return true;
@@ -593,7 +609,10 @@ function setTime(){
     }
     if(c.a.room===c.prev)return;
     c.prev=c.a.room;
-    if(c.a.room==='dome')c.gotoTile(FORM[i%FORM.length]);else c.goto(c.a.room);
+    if(c.a.room==='dome')c.gotoTile(FORM[i%FORM.length]);
+    else if(!c.a.student&&!c.a.director&&schedOf(c.a,day,tm).subj&&boardSpotFor(c.a.room)){
+      c.gotoTile(boardSpotFor(c.a.room));c.teaching=true;
+    }else{c.teaching=false;c.goto(c.a.room);}
   });
   updateStat();}
 
@@ -620,6 +639,7 @@ function emoteOf(c){
   const ty=ROOM_BY_ID[a.room].type;
   if(ty==='dome')return'🎵';
   if(ty==='canteen')return'🍚';
+  if(ty==='store711')return'🛒';
   if(a.student)return{sport:a.id%2?'⚽':'🏃',classroom:'📓',computer:'💻',science:'🔬',art:'🎨'}[ty]||'📓';
   if(ty==='staff')return['☕','💤','📱','📖'][a.id%4];
   if(ty==='classroom')return GEMOTE[a.group];
@@ -761,6 +781,7 @@ function showPerson(c,e){const a=c.a;hlId=a.id;
     popup.innerHTML=`<span class="close" onclick="closePopup()">✕</span>
       <h3>${a.name}</h3><span class="tag" style="background:${g.color}">${g.name}</span>
       <div class="row">ตอนนี้: <b>${roomLabel}</b></div>
+      ${a.full&&/ณัฐธเนศ/.test(a.full)&&ROOM_BY_ID[a.room]?.type==='store711'?'<div class="row">💬 มาตรวจความเรียบร้อยที่เซเว่นครับ</div>':''}
       <div class="row" style="margin-top:6px">ตารางวัน${DAYS[day]}:</div>${rows}`;}
   place(e);}
 function showRoom(rid,e){const r=ROOM_BY_ID[rid];hlId=-1;
