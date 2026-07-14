@@ -944,6 +944,9 @@ function selfCheck(){let ok=true;
 
 // ================= start =================
 addEventListener('resize',()=>{resize();fitCam();});
+if(window.visualViewport){
+  visualViewport.addEventListener('resize',()=>{resize();fitCam();});
+}
 resize();prerender();buildUI();
 ({day,tm}=realDayTm()); // เวลาจริงก่อน assign()/สร้าง Char ตัวแรก กัน prev เพี้ยนจาก tm ค่าเริ่มต้น
 assign();
