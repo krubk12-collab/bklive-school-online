@@ -109,6 +109,7 @@ const ROOF={classroom:'#c65a3d',computer:'#5b6b7d',science:'#3d8f57',art:'#8b4bb
             library:'#d98b2b',staff:'#7a8577',canteen:'#e07b3a',
             gym:'#475569',office:'#0d5c4a',shop:'#b45309',store711:'#15803d',temple:'#c2410c'};
 const PROP={classroom:'📖',computer:'🖥️',science:'🧪',art:'🎨',music:'🥁',library:'📚',canteen:'🍲',staff:'☕'};
+PROP.playground='🛝';
 
 // ผังจริงตามภาพถ่ายดาวเทียม: เรียงเหนือ-ใต้ (ประตูหน้า→อาคารประถม→อาคารมัธยม→โดม→ประตูหลัง→วัด)
 const GW=100,GH=112;
@@ -122,7 +123,7 @@ M_ORDER.forEach((id,i)=>ROOMS.push({id,label:SCHOOL.classes[id],type:'classroom'
   gx:30+(i%3)*9,gy:65+((i/3)|0)*8,gw:7,gh:6}));
 ROOMS.push(
  // แถบเหนือสุด: ประตูหน้า+ร้านค้า+7-11
- {id:'store711',label:'ร้านสะดวกซื้อ 7-11',type:'store711',gx:6, gy:3, gw:6,gh:5},
+ {id:'store711',label:'ร้านสะดวกซื้อ 7-11',type:'store711',gx:2, gy:0, gw:6,gh:4},
  {id:'shop1',label:'ร้านค้าหน้าโรงเรียน 1',type:'shop',gx:30,gy:3,gw:4,gh:3},
  {id:'shop2',label:'ร้านค้าหน้าโรงเรียน 2',type:'shop',gx:36,gy:3,gw:4,gh:3},
  {id:'shop3',label:'ร้านค้าหน้าโรงเรียน 3',type:'shop',gx:42,gy:3,gw:4,gh:3},
@@ -132,7 +133,7 @@ ROOMS.push(
  {id:'gym',     label:'โรงยิม',              type:'gym',      gx:8, gy:9, gw:12,gh:10},
  {id:'sport',   label:'สนามฟุตบอล',          type:'sport',    gx:43,gy:9, gw:14,gh:12},
  {id:'canteen', label:'โรงอาหาร',            type:'canteen',  gx:8, gy:20,gw:12,gh:9},
- {id:'library', label:'ห้องสมุด',            type:'library',  gx:8, gy:30,gw:8, gh:6},
+ {id:'library', label:'ห้องสมุด',            type:'library',  gx:8, gy:65,gw:8, gh:8},
  {id:'playground',label:'สนามเด็กเล่น',      type:'playground',gx:17,gy:30,gw:8, gh:6},
  // อาคารประถม: ห้องพิเศษ + ห้องผู้บริหาร + ห้องพักครู
  {id:'comp',    label:'ห้องคอมประถม',        type:'computer', gx:17,gy:39,gw:7,gh:6},
@@ -155,6 +156,9 @@ const STAFF_OF=['staff','staff2','m_staff'];
 const FLAGP={x:80,y:62};                 // เสาธงในโดม
 const GATE_FRONT={x:50,y:2};
 const GATE_BACK={x:80,y:87};
+const CAMPUS_RECT={x1:6,y1:8,x2:96,y2:90};
+const GATE_GAP_FRONT={x1:47,x2:53}; // แนวกำแพงบน แถว y=CAMPUS_RECT.y1, ตรงกับ GATE_FRONT.x=50
+const GATE_GAP_BACK={x1:77,x2:83};  // แนวกำแพงล่าง แถว y=CAMPUS_RECT.y2, ตรงกับ GATE_BACK.x=80
 
 const DAYS=['จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์'];
 // สองระดับใช้เวลาคนละชุด (หน่วย: นาทีของวัน) — ป. คาบ 2-7 เลิก 15:30 / ม. คาบ 1-8 เลิก 16:30
@@ -253,6 +257,7 @@ const DESK_LAYOUT={classroom:[[1,2],[2,2],[3,2],[4,2],[5,2],[1,4],[2,4],[3,4],[4
           [1,7],[2,7],[4,7],[5,7],[7,7],[8,7]],
  staff:[[1,1],[5,3]],
  library:[[1,1],[3,1],[5,1],[1,3],[3,3],[5,3]]};
+DESK_LAYOUT.playground=[[1,1],[4,1],[6,1],[1,4],[4,4]];
 ROOMS.forEach(r=>{(DESK_LAYOUT[r.type]||[]).forEach(([dx,dy])=>{grid[r.gy+dy][r.gx+dx].desk=true;});
   walkTiles[r.id]=plotTiles[r.id].filter(t=>!grid[t.y][t.x].desk);});
 // ทางเดินปูน (คั่นระหว่างบล็อกอาคารตามแนวตั้งใหม่)
@@ -275,6 +280,20 @@ for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
 // ประตูหน้า/หลัง ต้องเดินได้เสมอ (เคลียร์ deco ที่อาจถูกสุ่มทับ)
 grid[GATE_FRONT.y][GATE_FRONT.x].deco='gate';
 grid[GATE_BACK.y][GATE_BACK.x].deco='gate';
+// กำแพงรอบแคมปัส (เว้นช่องตรงประตูหน้า/หลัง)
+function addWallRow(y,x1,x2,gapX1,gapX2){
+  for(let x=x1;x<=x2;x++){
+    if(x>=gapX1&&x<=gapX2)continue;
+    if(!grid[y][x].plot)grid[y][x].deco='wall';
+  }
+}
+function addWallCol(x,y1,y2){
+  for(let y=y1;y<=y2;y++)if(!grid[y][x].plot)grid[y][x].deco='wall';
+}
+addWallRow(CAMPUS_RECT.y1,CAMPUS_RECT.x1,CAMPUS_RECT.x2,GATE_GAP_FRONT.x1,GATE_GAP_FRONT.x2);
+addWallRow(CAMPUS_RECT.y2,CAMPUS_RECT.x1,CAMPUS_RECT.x2,GATE_GAP_BACK.x1,GATE_GAP_BACK.x2);
+addWallCol(CAMPUS_RECT.x1,CAMPUS_RECT.y1,CAMPUS_RECT.y2);
+addWallCol(CAMPUS_RECT.x2,CAMPUS_RECT.y1,CAMPUS_RECT.y2);
 // แถวเข้าแถวในโดม
 const FORM=[];
 for(let y=DOME_RECT.y1;y<=DOME_RECT.y2;y++)for(let x=DOME_RECT.x1;x<=DOME_RECT.x2;x++)
@@ -342,6 +361,13 @@ function prerender(){
   // พื้น
   for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
     const[cx,cy]=iso(x,y),c=grid[y][x];
+    if(c.deco==='wall'){
+      const h=10,col='#8a8377';
+      quad(b,[cx+TW2,cy],[cx,cy+TH2],[cx,cy+TH2-h],[cx+TW2,cy-h],shade(col,0.75));
+      quad(b,[cx,cy+TH2],[cx-TW2,cy],[cx-TW2,cy-h],[cx,cy+TH2-h],shade(col,0.55));
+      b.fillStyle=col;diamond(b,cx,cy-h);b.fill();
+      continue;
+    }
     if(c.deco==='pond'){b.fillStyle=((x+y)%2)?'#4aa3d4':'#57add9';diamond(b,cx,cy);b.fill();continue;}
     if(c.path){b.fillStyle=((x+y)%2)?'#d6cba4':'#cfc49e';diamond(b,cx,cy);b.fill();
       b.strokeStyle='rgba(0,0,0,.07)';diamond(b,cx,cy);b.stroke();continue;}
@@ -907,6 +933,8 @@ function selfCheck(){let ok=true;
   console.assert(GW===100&&GH===112,'❌ ขนาดแผนที่ไม่ตรงสเปก');
   console.assert(!!ROOM_BY_ID.gym&&!!ROOM_BY_ID.library&&!!ROOM_BY_ID.playground&&!!ROOM_BY_ID.m_sci2&&!!ROOM_BY_ID.temple,
     '❌ ห้องใหม่หายไป');
+  console.assert(!walkable(CAMPUS_RECT.x1,40),'❌ กำแพงฝั่งตะวันตกไม่ปิดกั้น');
+  console.assert(walkable(50,CAMPUS_RECT.y1)||walkable(50,CAMPUS_RECT.y1+1),'❌ ช่องประตูหน้าไม่เปิด');
   console.log(ok&&p1.length&&p2.length?'✅ self-check ผ่าน — ประตู/โต๊ะ/ข้ามโซน/ลานเสาธง เดินถึงหมด':'❌ self-check ล้มเหลว');
 }
 
