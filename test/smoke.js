@@ -103,6 +103,20 @@ function run() {
     process.exit(1);
   }
 
+  // sweep เวลา 06:00-19:00 ทุก 15 นาที ตรวจว่าไม่มีใครโผล่ก่อนมา/อยู่หลังกลับ
+  try {
+    vm.runInContext(`
+      for(let t=360;t<=1140;t+=15){ tm=t; assign();
+        [...TEACHERS,...STUDENTS].forEach(a=>{
+          const shouldBePresent = t>=a.arriveT && t<a.leaveT;
+          if(shouldBePresent && a.room===null) console.error('หายไปทั้งที่ควรอยู่:',a.id,t);
+          if(!shouldBePresent && a.room!==null) console.error('อยู่ทั้งที่ควรกลับ/ยังไม่มา:',a.id,t);
+        });
+      }
+      if(present(TEACHERS[0],500)===false) console.error('present() ผิดพลาดที่ 500min');
+    `, sandbox, { filename: 'sweep.js', timeout: 10000 });
+  } catch (e) { errors.push('sweep threw: ' + (e.stack || e)); }
+
   if (errors.length) {
     console.error('SMOKE FAIL — captured console errors/asserts:\n' + errors.join('\n'));
     process.exit(1);

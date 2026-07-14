@@ -143,11 +143,13 @@ const GATE_BACK={x:80,y:87};
 const DAYS=['จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์'];
 // สองระดับใช้เวลาคนละชุด (หน่วย: นาทีของวัน) — ป. คาบ 2-7 เลิก 15:30 / ม. คาบ 1-8 เลิก 16:30
 const ASM={s:480,e:510}; // เข้าแถวทั้งโรงเรียน 08:00-08:30
+const GATHER={s:450,e:480}; // 07:30-07:50 ทยอยเดินเข้าแถวที่โดม
+const inGather=t=>t>=GATHER.s&&t<GATHER.e;
 const PPER=[{n:2,s:510,e:570},{n:3,s:570,e:630},{n:4,s:630,e:690},{lunch:1,s:690,e:750},
             {n:5,s:750,e:810},{n:6,s:810,e:870},{n:7,s:870,e:930}];
 const MPER=[{n:1,s:510,e:560},{n:2,s:560,e:610},{n:3,s:610,e:660},{n:4,s:660,e:710},{lunch:1,s:710,e:770},
             {n:5,s:770,e:820},{n:6,s:820,e:870},{n:7,s:870,e:930},{n:8,s:930,e:990}];
-const TMIN=ASM.s,TMAX=990;
+const TMIN=360,TMAX=1140; // 06:00-19:00
 const fmtT=m=>String(m/60|0).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
 const zP=(Z,t)=>Z.find(p=>t>=p.s&&t<p.e)||null;
 const inAsm=t=>t>=ASM.s&&t<ASM.e;
@@ -156,13 +158,22 @@ const SKIN=['#f2c9a0','#e8b088','#f5d6b3','#d99b6c'];
 const HAIR=['#2b2b2b','#4a2e1c','#111827','#3a2a1a'];
 
 // ครูจริงจาก data.js (ป.+ม. merge คนสอนควบ) + นักเรียนจริงจาก MASTER (ชื่อเล่น, ตัวโตตามชั้น)
+function gateFieldsFor(id,isStudent){
+  const gate=isStudent&&hash(id,7,11)%100<18?'back':'front';
+  const arriveT=360+hash(id,3,5)%90;               // 06:00-07:29
+  const gatherAt=450+hash(id,9,13)%30;             // 07:30-07:49
+  return{gate,arriveT,gatherAt};
+}
 const TEACHERS=SCHOOL.teachers.map((t,i)=>({id:i,name:t.disp,full:t.name,group:t.group,lv:t.lv,
   skin:SKIN[i%SKIN.length],hair:HAIR[(i*3)%HAIR.length],style:i%3,
-  shirt:GROUPS[t.group].color,pants:'#3a3a3a',scale:1}));
+  shirt:GROUPS[t.group].color,pants:'#3a3a3a',scale:1,
+  ...gateFieldsFor(i,false),leaveT:990+hash(i,17,19)%85}));   // 16:30 + 0-84min
 const STUDENTS=SCHOOL.students.map((st,i)=>({id:100+i,name:st.n,home:st.c,student:true,mz:st.c[0]==='C',
   skin:SKIN[(i*2)%SKIN.length],hair:'#1a1a1a',style:st.g?1:0,
   shirt:'#f8f8f8',pants:st.g?'#7a2333':'#1e3a5f',
-  scale:st.c[0]==='C'?0.88:0.7+(+st.c[1]||1)*0.02}));
+  scale:st.c[0]==='C'?0.88:0.7+(+st.c[1]||1)*0.02,
+  ...gateFieldsFor(100+i,true),
+  leaveT:(st.c[0]==='C'?960:930)+hash(100+i,17,19)%30}));     // ม.16:00-16:30 / ป.15:30-16:00
 
 function hash(a,b,c){let x=(Math.imul(a,73856093)^Math.imul(b,19349663)^Math.imul(c,83492791))>>>0;
   x=Math.imul(x^(x>>>15),2246822507);x^=x>>>13;return x>>>0;}
@@ -180,7 +191,7 @@ function sciRoomFor(rid,cls){
 }
 // ครูคนหนึ่งอาจสอนควบสองระดับ — เช็คคาบมัธยมก่อน (ตารางจริงเวลาไม่ชนกัน)
 function schedOf(t,d,t_m){
-  if(inAsm(t_m))return{rid:'plaza'};
+  if(inAsm(t_m))return{rid:'dome'};
   const mp=zP(MPER,t_m);
   if(mp&&mp.n){const e=SCHOOL.ttM[t.full]?.[d+1]?.[mp.n];
     if(e)return{rid:e.r||e.c,subj:e.s,cls:SCHOOL.classes[e.c]};}
@@ -193,13 +204,14 @@ function schedOf(t,d,t_m){
 }
 // นักเรียนตามตารางห้องตัวเอง (ย้ายไปห้องคอม/แล็บ/โดมตามวิชา)
 function studentRoomOf(st,d,t_m){
-  if(inAsm(t_m))return'plaza';
+  if(inAsm(t_m))return'dome';
+  if(t_m>=st.gatherAt&&t_m<ASM.s)return'dome';
   const Z=st.mz?MPER:PPER,per=zP(Z,t_m);
   if(!per)return st.mz?'dome':'sport';                    // เลิกเรียน → วิ่งเล่น
   if(per.lunch)return st.id%3?(st.mz?'dome':'sport'):'canteen'; // ponytail: 1/3 กินข้าว 2/3 วิ่งเล่น กันโรงอาหารแน่นเกิน (นร.จริง 544)
   const e=(st.mz?SCHOOL.ctM:SCHOOL.ctP)[st.home]?.[d+1]?.[per.n];
   if(!e)return st.home;
-  return st.mz?(e.r||st.home):(SUBJ_ROOM(e.s)||st.home);
+  return st.mz?sciRoomFor(e.r||st.home,st.home):(SUBJ_ROOM(e.s)||st.home);
 }
 
 // ================= กริด + ประตู + โต๊ะ =================
@@ -423,6 +435,7 @@ function drawFront(r){
 
 // ================= ตัวละคร =================
 const EYE={0:[2,4.6],1:[-0.5,3.2],2:[-2.2,2.2],3:[-3.2,0.5],4:[-4.6,-2]};
+const gateOf=g=>g==='back'?GATE_BACK:GATE_FRONT;
 class Char{
   constructor(a){this.a=a;a.room=a.room||'staff';this.prev=a.room;const s=randTileIn(a.room);
     this.fx=s.x;this.fy=s.y;this.path=[];this.dir=2;this.phase=0;
@@ -431,6 +444,7 @@ class Char{
   goto(rid){const s=this.tile,g=randTileIn(rid);this.path=bfs(s.x,s.y,g.x,g.y);}
   gotoTile(g){const s=this.tile;this.path=bfs(s.x,s.y,Math.round(g.x),Math.round(g.y));}
   update(dt){
+    if(this.gone)return;
     const inSport=this.a.student&&ROOM_BY_ID[this.a.room]?.type==='sport';
     if(this.path.length){
       const n=this.path[0],dx=n.x-this.fx,dy=n.y-this.fy,dist=Math.hypot(dx,dy);
@@ -441,9 +455,11 @@ class Char{
       if(dist<=step){this.fx=n.x;this.fy=n.y;this.path.shift();}
       else{this.fx+=dx/dist*step;this.fy+=dy/dist*step;}
       this.phase+=dt*(inSport?12:9);this.moving=true;
+      if(this.leaving&&!this.path.length){this.gone=true;this.moving=false;}
     }else{
       this.moving=false;
-      if(this.a.room==='plaza'){this.dir=6;return;} // เข้าแถว หันหน้าเข้าเสาธง
+      if(this.leaving){this.gone=true;return;}
+      if(this.a.room==='dome'){this.dir=6;return;} // เข้าแถว หันหน้าเข้าเสาธง
       this.wander-=dt;
       if(this.wander<=0){this.wander=inSport?0.4+Math.random():2+Math.random()*5;
         const ts=walkTiles[this.a.room],g=ts[(Math.random()*ts.length)|0],s=this.tile;
@@ -505,9 +521,10 @@ class Critter{
 // ================= สถานะ (แกนเวลาเป็นนาที — สองโซนคาบไม่ตรงกัน) =================
 let day=0,tm=510,chars=[],critters=[],hlId=-1,last=0,showNames=true,nowMode=false,lastKey=null;
 const popup=document.getElementById('popup');
+function present(a,tm_){return tm_>=a.arriveT&&tm_<a.leaveT;}
 function assign(){
-  TEACHERS.forEach(t=>{t.room=schedOf(t,day,tm).rid||STAFF_OF[t.lv];});
-  STUDENTS.forEach(s=>{s.room=studentRoomOf(s,day,tm);});
+  TEACHERS.forEach(t=>{t.room=present(t,tm)?(schedOf(t,day,tm).rid||STAFF_OF[t.lv]):null;});
+  STUDENTS.forEach(s=>{s.room=present(s,tm)?studentRoomOf(s,day,tm):null;});
 }
 function zoneDesc(){
   if(inAsm(tm))return'🚩 เข้าแถวเคารพธงชาติ';
@@ -518,9 +535,10 @@ function updateStat(){
   let msg;
   if(inAsm(tm))msg=`🚩 เข้าแถวเคารพธงชาติทั้งโรงเรียน`;
   else{let teach=0,free=0;
-    TEACHERS.forEach(t=>{schedOf(t,day,tm).subj?teach++:free++;});
+    TEACHERS.forEach(t=>{if(t.room)schedOf(t,day,tm).subj?teach++:free++;});
     msg=`สอนอยู่ <b>${teach}</b> · พัก <b>${free}</b>`;}
-  document.getElementById('stat').innerHTML=`${msg} · ครู <b>${TEACHERS.length}</b> นร. <b>${STUDENTS.length}</b>`;}
+  const present_=[...TEACHERS,...STUDENTS].filter(a=>a.room).length;
+  document.getElementById('stat').innerHTML=`${msg} · อยู่ในโรงเรียน <b>${present_}</b>/${TEACHERS.length+STUDENTS.length}`;}
 function periodKey(){return(inAsm(tm)?'A':'')+[zP(PPER,tm),zP(MPER,tm)].map(p=>p?(p.n||'L'):'-').join('|');}
 function setTime(){
   document.getElementById('slider').value=tm;
@@ -531,9 +549,18 @@ function setTime(){
   lastKey=key;
   assign();
   chars.forEach((c,i)=>{
+    if(c.a.room===null){
+      if(!c.gone&&c.prev!==null){ // เพิ่งออก → เดินไปประตูแล้วหาย
+        c.gotoTile(gateOf(c.a.gate));c.leaving=true;
+      }
+      c.prev=null;return;
+    }
+    if(c.prev===null){ // เพิ่งมาถึง (หรือเพิ่งเริ่มโหลด) → โผล่ที่ประตูก่อนเดินเข้า
+      const g=gateOf(c.a.gate);c.fx=g.x;c.fy=g.y;c.gone=false;c.leaving=false;
+    }
     if(c.a.room===c.prev)return;
     c.prev=c.a.room;
-    if(c.a.room==='plaza')c.gotoTile(FORM[i%FORM.length]);else c.goto(c.a.room);
+    if(c.a.room==='dome')c.gotoTile(FORM[i%FORM.length]);else c.goto(c.a.room);
   });
   updateStat();}
 
@@ -555,8 +582,10 @@ function bellRing(){
 function emoteOf(c){
   if(last/1000-c.clickT<1.6)return'❗';
   if(c.moving)return null;
-  const a=c.a,ty=ROOM_BY_ID[a.room].type;
-  if(ty==='plaza')return'🎵';
+  const a=c.a;
+  if(!a.room)return null; // กำลังเดินออกประตู (a.room เป็น null ระหว่างทาง) → ไม่ต้องมีอีโมต
+  const ty=ROOM_BY_ID[a.room].type;
+  if(ty==='dome')return'🎵';
   if(ty==='canteen')return'🍚';
   if(a.student)return{sport:a.id%2?'⚽':'🏃',classroom:'📓',computer:'💻',science:'🔬',art:'🎨'}[ty]||'📓';
   if(ty==='staff')return['☕','💤','📱','📖'][a.id%4];
@@ -569,12 +598,12 @@ function frame(ts){const dt=Math.min(0.05,(ts-last)/1000||0);last=ts;
   ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,cv.width,cv.height);
   ctx.setTransform(cam.s,0,0,cam.s,cam.x,cam.y);
   ctx.drawImage(bg,bgOX,bgOY);
-  chars.forEach(c=>c.update(dt));critters.forEach(c=>c.update(dt));
+  chars.forEach(c=>{if(!c.gone)c.update(dt);});critters.forEach(c=>c.update(dt));
   const ents=[],tags=[];
   ROOMS.forEach(r=>{ents.push({d:r.gx+r.gy+0.01,f:()=>drawBack(r)});
     if(!OPEN_TYPES.includes(r.type))ents.push({d:r.gx+r.gw+r.gy+r.gh-0.01,f:()=>drawFront(r)});});
-  chars.forEach(c=>ents.push({d:c.fx+c.fy,f:()=>{const wy=c.draw();
-    tags.push({wx:iso(c.fx,c.fy)[0],wy,c});}}));
+  chars.forEach(c=>{if(c.gone)return;ents.push({d:c.fx+c.fy,f:()=>{const wy=c.draw();
+    tags.push({wx:iso(c.fx,c.fy)[0],wy,c});}});});
   critters.forEach(c=>ents.push({d:c.fx+c.fy,f:()=>{const wy=c.draw();
     tags.push({wx:iso(c.fx,c.fy)[0],wy,cr:c});}}));
   ents.push({d:FLAGP.x+FLAGP.y,f:drawFlag});
@@ -658,7 +687,7 @@ cv.addEventListener('wheel',e=>{e.preventDefault();const[wx,wy]=screenToWorld(e.
 function closePopup(){popup.style.display='none';hlId=-1;}
 function click(e){const[wx,wy]=screenToWorld(e.clientX,e.clientY);
   let best=null,bd=20;
-  chars.forEach(c=>{const[cx,cy]=iso(c.fx,c.fy);
+  chars.forEach(c=>{if(c.gone)return;const[cx,cy]=iso(c.fx,c.fy);
     const on=(grid[Math.round(c.fy)]?.[Math.round(c.fx)]?.plot)?PH:0;
     const d=Math.hypot(wx-cx,wy-(cy-on-16*c.a.scale));if(d<bd){bd=d;best={c};}});
   critters.forEach(c=>{const[cx,cy]=iso(c.fx,c.fy);
@@ -671,10 +700,11 @@ function click(e){const[wx,wy]=screenToWorld(e.clientX,e.clientY);
 function place(e){popup.style.left=Math.min(e.clientX+12,innerWidth-300)+'px';
   popup.style.top=Math.min(e.clientY+12,innerHeight-240)+'px';popup.style.display='block';}
 function showPerson(c,e){const a=c.a;hlId=a.id;
+  const roomLabel=a.room?ROOM_BY_ID[a.room].label:'🚪 กำลังเดินเข้า-ออกโรงเรียน';
   if(a.student){
     popup.innerHTML=`<span class="close" onclick="closePopup()">✕</span>
       <h3>${a.name}</h3><span class="tag" style="background:#1e3a5f">นักเรียน ${ROOM_BY_ID[a.home].label}</span>
-      <div class="row">ตอนนี้: <b>${ROOM_BY_ID[a.room].label}</b></div>`;
+      <div class="row">ตอนนี้: <b>${roomLabel}</b></div>`;
   }else{
     const g=GROUPS[a.group];
     const secs=[];
@@ -687,7 +717,7 @@ function showPerson(c,e){const a=c.a;hlId=a.id;
       .join('')||'<ul><li>— ไม่มีคาบสอน —</li></ul>';
     popup.innerHTML=`<span class="close" onclick="closePopup()">✕</span>
       <h3>${a.name}</h3><span class="tag" style="background:${g.color}">${g.name}</span>
-      <div class="row">ตอนนี้: <b>${ROOM_BY_ID[a.room].label}</b></div>
+      <div class="row">ตอนนี้: <b>${roomLabel}</b></div>
       <div class="row" style="margin-top:6px">ตารางวัน${DAYS[day]}:</div>${rows}`;}
   place(e);}
 function showRoom(rid,e){const r=ROOM_BY_ID[rid];hlId=-1;
