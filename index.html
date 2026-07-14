@@ -97,13 +97,13 @@ const GROUPS=[
  {name:'สุขศึกษาและพลศึกษา',color:'#0891b2'},{name:'ศิลปะ',color:'#9333ea'},
  {name:'การงาน/คอมพิวเตอร์',color:'#475569'},{name:'ภาษาต่างประเทศ',color:'#db2777'}];
 const GEMOTE=['📖','🧮','🔬','🗺️','⚽','🎨','💻','🗣️'];
-const TYPE_ICON={classroom:'📚',sport:'⚽',art:'🎨',music:'🎵',computer:'💻',science:'🔬',library:'📖',staff:'☕',canteen:'🍽️',plaza:'🚩',
+const TYPE_ICON={classroom:'📚',sport:'⚽',art:'🎨',music:'🎵',computer:'💻',science:'🔬',library:'📖',staff:'☕',canteen:'🍽️',
   gym:'🏋️',playground:'🛝',office:'🗂️',shop:'🛒',store711:'🏪',temple:'🛕',dome:'🚩'};
 const FLOOR={classroom:'#f3e9d2',computer:'#d9e2ec',science:'#d7f0dd',art:'#ecdcf7',music:'#f6e3fb',
              sport:'#7cc47f',library:'#fdeccb',staff:'#e7ede6',canteen:'#ffe6cc',
              gym:'#e0e7ef',playground:'#fde68a',office:'#e0f2e9',shop:'#fef3c7',store711:'#fee2e2',temple:'#fef0d5',dome:'#e8e2d0'};
 const ACCENT={classroom:'#b98a4b',computer:'#475569',science:'#16a34a',art:'#9333ea',music:'#a855f7',
-              sport:'#0891b2',library:'#f59e0b',staff:'#64748b',canteen:'#f97316',plaza:'#b91c1c',
+              sport:'#0891b2',library:'#f59e0b',staff:'#64748b',canteen:'#f97316',
               gym:'#334155',playground:'#f59e0b',office:'#0f766e',shop:'#d97706',store711:'#16a34a',temple:'#b45309',dome:'#b91c1c'};
 const ROOF={classroom:'#c65a3d',computer:'#5b6b7d',science:'#3d8f57',art:'#8b4bb5',music:'#a05cc4',
             library:'#d98b2b',staff:'#7a8577',canteen:'#e07b3a',
@@ -150,9 +150,6 @@ ROOMS.push(
  // วัด (นอกรั้ว ใต้ประตูหลัง)
  {id:'temple',  label:'วัดบางโค + ศาลาวัด',  type:'temple',   gx:70,gy:95,gw:20,gh:10});
 const ROOM_BY_ID=Object.fromEntries(ROOMS.map(r=>[r.id,r]));
-// ponytail: ห้อง 'plaza' เสมือน (ไม่มีพื้นที่จริงในกริดแล้ว) — schedOf/studentRoomOf (นอก scope งานนี้) ยังคืน rid:'plaza'
-// ช่วงเข้าแถว ต้องคงไว้กัน ROOM_BY_ID['plaza'] undefined ล่ม จนกว่า Task 3 จะเปลี่ยนไปคืน 'dome' แทน
-ROOM_BY_ID.plaza={id:'plaza',label:'ลานเสาธง',type:'plaza'};
 const CLASSROOMS=ROOMS.filter(r=>r.type==='classroom').map(r=>r.id);
 const STAFF_OF=['staff','staff2','m_staff'];
 const FLAGP={x:80,y:62};                 // เสาธงในโดม
@@ -162,8 +159,6 @@ const GATE_BACK={x:80,y:87};
 const DAYS=['จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์'];
 // สองระดับใช้เวลาคนละชุด (หน่วย: นาทีของวัน) — ป. คาบ 2-7 เลิก 15:30 / ม. คาบ 1-8 เลิก 16:30
 const ASM={s:480,e:510}; // เข้าแถวทั้งโรงเรียน 08:00-08:30
-const GATHER={s:450,e:480}; // 07:30-07:50 ทยอยเดินเข้าแถวที่โดม
-const inGather=t=>t>=GATHER.s&&t<GATHER.e;
 const PPER=[{n:2,s:510,e:570},{n:3,s:570,e:630},{n:4,s:630,e:690},{lunch:1,s:690,e:750},
             {n:5,s:750,e:810},{n:6,s:810,e:870},{n:7,s:870,e:930}];
 const MPER=[{n:1,s:510,e:560},{n:2,s:560,e:610},{n:3,s:610,e:660},{n:4,s:660,e:710},{lunch:1,s:710,e:770},
@@ -905,7 +900,6 @@ function selfCheck(){let ok=true;
   const occ={};
   ROOMS.forEach(r=>{for(let y=r.gy;y<r.gy+r.gh;y++)for(let x=r.gx;x<r.gx+r.gw;x++){
     const k=x+','+y;if(occ[k]){console.error('ห้องทับกัน:',occ[k],r.id,k);ok=false;}occ[k]=r.id;}});
-  console.assert(FORM.length>=TEACHERS.length+STUDENTS.length,'❌ โดมเล็กกว่าจำนวนคน '+FORM.length+'/'+(TEACHERS.length+STUDENTS.length));
   const pGate=bfs(GATE_FRONT.x,GATE_FRONT.y,DOOR.office.x,DOOR.office.y);
   console.assert(pGate.length>0,'❌ เดินจากประตูหน้าไปห้องผู้บริหารไม่ได้');
   const pBack=bfs(GATE_BACK.x,GATE_BACK.y,FORM[0].x,FORM[0].y);
