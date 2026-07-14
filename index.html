@@ -636,8 +636,18 @@ function frame(ts){const dt=Math.min(0.05,(ts-last)/1000||0);last=ts;
       ctx.strokeStyle='#f59e0b';ctx.lineWidth=2;
       ctx.beginPath();ctx.ellipse(wx,wy-on,12,6,0,0,7);ctx.stroke();ctx.lineWidth=1;}}
   drawClouds();
-  const TINT=tm<510?'rgba(255,200,120,.10)':tm<600?'rgba(255,205,130,.06)':tm<690?'rgba(255,220,160,.03)':
-    tm<780?'':tm<840?'rgba(255,250,210,.05)':tm<900?'':tm<950?'rgba(255,180,110,.05)':'rgba(255,140,80,.11)';
+  const TINT=
+    tm<420?'rgba(40,60,110,.28)':          // 06:00-07:00 เช้ามืด
+    tm<480?'rgba(255,190,120,.14)':        // 07:00-08:00 แดดอ่อนตอนเช้า
+    tm<600?'rgba(255,205,130,.06)':
+    tm<690?'rgba(255,220,160,.03)':
+    tm<780?'':
+    tm<840?'rgba(255,250,210,.05)':
+    tm<900?'':
+    tm<950?'rgba(255,180,110,.05)':
+    tm<1020?'rgba(255,140,80,.11)':        // ~16:30-17:00 พลบเริ่ม
+    tm<1080?'rgba(200,90,70,.20)':         // ~17:00-18:00 ส้มพลบค่ำเข้ม
+    'rgba(20,25,55,.45)';                  // 18:00+ มืดน้ำเงินเข้ม
   if(TINT){ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle=TINT;ctx.fillRect(0,0,cv.width,cv.height);}
   requestAnimationFrame(frame);
 }
