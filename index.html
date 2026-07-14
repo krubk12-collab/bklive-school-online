@@ -110,6 +110,7 @@ const ROOF={classroom:'#c65a3d',computer:'#5b6b7d',science:'#3d8f57',art:'#8b4bb
             gym:'#475569',office:'#0d5c4a',shop:'#b45309',store711:'#15803d',temple:'#c2410c'};
 const PROP={classroom:'📖',computer:'🖥️',science:'🧪',art:'🎨',music:'🥁',library:'📚',canteen:'🍲',staff:'☕'};
 PROP.playground='🛝';
+PROP.temple='🧘';
 
 // ผังจริงตามภาพถ่ายดาวเทียม: เรียงเหนือ-ใต้ (ประตูหน้า→อาคารประถม→อาคารมัธยม→โดม→ประตูหลัง→วัด)
 const GW=100,GH=112;
@@ -258,6 +259,7 @@ const DESK_LAYOUT={classroom:[[1,2],[2,2],[3,2],[4,2],[5,2],[1,4],[2,4],[3,4],[4
  staff:[[1,1],[5,3]],
  library:[[1,1],[3,1],[5,1],[1,3],[3,3],[5,3]]};
 DESK_LAYOUT.playground=[[1,1],[4,1],[6,1],[1,4],[4,4]];
+DESK_LAYOUT.temple=[[9,2]];
 ROOMS.forEach(r=>{(DESK_LAYOUT[r.type]||[]).forEach(([dx,dy])=>{grid[r.gy+dy][r.gx+dx].desk=true;});
   walkTiles[r.id]=plotTiles[r.id].filter(t=>!grid[t.y][t.x].desk);});
 // ทางเดินปูน (คั่นระหว่างบล็อกอาคารตามแนวตั้งใหม่)
@@ -559,9 +561,9 @@ class Char{
   }
 }
 class Critter{
-  constructor(name,emoji,desc,speed,sounds){this.name=name;this.emoji=emoji;this.desc=desc;this.speed=speed;
-    this.sounds=sounds;this.soundT=2+Math.random()*4;this.dir=0;
-    const s=YARD[rnd()%YARD.length];this.fx=s.x;this.fy=s.y;this.path=[];this.wait=1;this.ph=rnd()%10;}
+  constructor(name,emoji,desc,speed,sounds,area){this.name=name;this.emoji=emoji;this.desc=desc;this.speed=speed;
+    this.sounds=sounds;this.area=area||YARD;this.soundT=2+Math.random()*4;this.dir=0;
+    const s=this.area[rnd()%this.area.length];this.fx=s.x;this.fy=s.y;this.path=[];this.wait=1;this.ph=rnd()%10;}
   update(dt){
     if(this.path.length){
       const n=this.path[0],dx=n.x-this.fx,dy=n.y-this.fy,d=Math.hypot(dx,dy),st=this.speed*dt;
@@ -574,7 +576,7 @@ class Critter{
       this.ph+=dt*8;this.moving=true;
     }else{this.moving=false;this.wait-=dt;
       if(this.wait<=0){this.wait=2+Math.random()*6;
-        const g=YARD[(Math.random()*YARD.length)|0];
+        const g=this.area[(Math.random()*this.area.length)|0];
         this.path=bfs(Math.round(this.fx),Math.round(this.fy),g.x,g.y);}}
     this.soundT-=dt;if(this.soundT<=0){this.soundT=6+Math.random()*10;this._say=1.6;this._text=this.sounds(tm);}
     if(this._say>0)this._say-=dt;
@@ -947,7 +949,8 @@ assign();
 chars=[...TEACHERS,...STUDENTS,...DIRECTORS].map(a=>new Char(a));
 critters=[new Critter('เจ้าด่าง','🐕','หมาประจำโรงเรียน ชอบวิ่งเล่นสนาม',2.2,()=>'โฮ่ง!'),
           new Critter('ส้มโอ','🐈','แมวส้มขี้อ้อน ประจำห้องพักครู',1.6,()=>'เหมียว~'),
-          new Critter('ไข่ต้ม','🐓','ไก่หลงมา อยู่ยาวจนเป็นขาประจำ',1.3,t=>t<420?'เอ้กอีเอ้กเอ้ก!':'กระต๊ากๆ')];
+          new Critter('ไข่ต้ม','🐓','ไก่หลงมา อยู่ยาวจนเป็นขาประจำ',1.3,t=>t<420?'เอ้กอีเอ้กเอ้ก!':'กระต๊ากๆ'),
+          new Critter('พระ','🙏','พระกวาดลานวัดทุกเช้า',1.0,()=>'สาธุ',walkTiles.temple)];
 gotoNow();fitCam();selfCheck();
 requestAnimationFrame(frame);
 </script>
