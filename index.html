@@ -28,7 +28,7 @@
   .stat{font-size:12px;color:var(--muted);white-space:nowrap}
   .stat b{color:var(--ink)}
   main{flex:1;position:relative;overflow:hidden}
-  canvas{display:block;cursor:grab}
+  canvas{display:block;cursor:grab;touch-action:none}
   canvas.drag{cursor:grabbing}
   /* ponytail: legend sits under the open sidebar (both occupy the 0-230px band); toggle sidebar closed (☰) to see it. No JS-state-free CSS fix exists for "shift only while open" */
   .legend{position:absolute;left:10px;bottom:10px;background:rgba(255,255,255,.92);
@@ -348,6 +348,7 @@ function resize(){
   logW=innerWidth;logH=mainEl.clientHeight;
   cv.width=Math.round(logW*dpr);cv.height=Math.round(logH*dpr);
   cv.style.width=logW+'px';cv.style.height=logH+'px';
+  ctx.imageSmoothingEnabled=false; // assigning width/height above resets context state — must re-set every resize
 }
 
 // ---- prerender พื้น+เฟอร์นิเจอร์ (ครั้งเดียว) ----
@@ -776,10 +777,14 @@ function drawClouds(){
 }
 
 // ================= กล้อง + คลิก =================
-const CORE_BOUNDS={x1:0,y1:0,x2:100,y2:90}; // ตัดวัด+คลองท้ายแผนที่ออกจากมุมมองเริ่มต้นบนจอแคบ
 function fitCam(){
   const mobile=logW<700;
-  const b=mobile?CORE_BOUNDS:{x1:0,y1:0,x2:GW,y2:GH};
+  if(mobile){
+    cam.s=0.42; // ซูมระดับอ่านชื่อห้องออก แล้วให้ลาก/บีบนิ้วดูส่วนอื่นเอง
+    focusOn(46,50); // กลางอาคารประถม (ระหว่างแถวห้องเรียน ป. กับ ม.)
+    return;
+  }
+  const b={x1:0,y1:0,x2:GW,y2:GH};
   let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
   [[b.x1,b.y1],[b.x2,b.y1],[b.x1,b.y2],[b.x2,b.y2]].forEach(([x,y])=>{const[wx,wy]=iso(x,y);
     minX=Math.min(minX,wx);maxX=Math.max(maxX,wx);minY=Math.min(minY,wy);maxY=Math.max(maxY,wy);});
@@ -805,6 +810,41 @@ addEventListener('mouseup',e=>{if(drag&&!drag.moved)click(e);drag=null;cv.classL
 cv.addEventListener('wheel',e=>{e.preventDefault();const[wx,wy]=screenToWorld(e.clientX,e.clientY);
   const ns=Math.max(0.12,Math.min(2.6,cam.s*(e.deltaY<0?1.12:0.89)));
   const r=cv.getBoundingClientRect();cam.x=e.clientX-r.left-wx*ns;cam.y=e.clientY-r.top-wy*ns;cam.s=ns;},{passive:false});
+
+// ---- touch: 1 นิ้วลาก=แพน, 2 นิ้ว=บีบซูม (จุดใต้กึ่งกลางสองนิ้วนิ่งเหมือน wheel), แตะเบา=คลิก ----
+let touch=null;
+function pinchInfo(ts){const[a,b]=ts;const dx=b.clientX-a.clientX,dy=b.clientY-a.clientY;
+  return{d:Math.hypot(dx,dy),mx:(a.clientX+b.clientX)/2,my:(a.clientY+b.clientY)/2};}
+cv.addEventListener('touchstart',e=>{e.preventDefault();
+  if(e.touches.length===1){const t=e.touches[0];
+    touch={mode:'pan',x0:t.clientX,y0:t.clientY,cx:cam.x,cy:cam.y,moved:false,t0:Date.now(),lx:t.clientX,ly:t.clientY};
+    cv.classList.add('drag');
+  }else if(e.touches.length===2){
+    const p=pinchInfo(e.touches),[wx,wy]=screenToWorld(p.mx,p.my);
+    touch={mode:'pinch',d0:p.d,s0:cam.s,wx,wy};
+  }
+},{passive:false});
+cv.addEventListener('touchmove',e=>{e.preventDefault();if(!touch)return;
+  if(touch.mode==='pan'&&e.touches.length===1){
+    const t=e.touches[0],dx=t.clientX-touch.x0,dy=t.clientY-touch.y0;
+    if(Math.hypot(dx,dy)>8)touch.moved=true;
+    cam.x=touch.cx+dx;cam.y=touch.cy+dy;touch.lx=t.clientX;touch.ly=t.clientY;
+  }else if(touch.mode==='pinch'&&e.touches.length===2){
+    const p=pinchInfo(e.touches);
+    const ns=Math.max(0.12,Math.min(2.6,touch.s0*(p.d/touch.d0)));
+    const r=cv.getBoundingClientRect();
+    cam.x=p.mx-r.left-touch.wx*ns;cam.y=p.my-r.top-touch.wy*ns;cam.s=ns;
+  }
+},{passive:false});
+cv.addEventListener('touchend',e=>{e.preventDefault();
+  if(touch&&touch.mode==='pan'&&e.touches.length===0&&!touch.moved&&Date.now()-touch.t0<500)
+    click({clientX:touch.lx,clientY:touch.ly});
+  cv.classList.remove('drag');
+  if(e.touches.length===0)touch=null;
+  else if(e.touches.length===1){const t=e.touches[0]; // เหลือนิ้วเดียวหลังบีบซูม → เริ่มแพนใหม่จากจุดนี้
+    touch={mode:'pan',x0:t.clientX,y0:t.clientY,cx:cam.x,cy:cam.y,moved:true,t0:0,lx:t.clientX,ly:t.clientY};}
+},{passive:false});
+cv.addEventListener('touchcancel',()=>{touch=null;cv.classList.remove('drag');},{passive:false});
 
 function closePopup(){popup.style.display='none';hlId=-1;}
 function click(e){const[wx,wy]=screenToWorld(e.clientX,e.clientY);
