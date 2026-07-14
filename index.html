@@ -587,6 +587,7 @@ class Critter{
     const lean=this.moving?[0,3,0,-3][this.dir]*0.3:0; // เอียงตัวเล็กน้อยตามทิศวิ่ง แทนแค่ลอยขึ้นลง
     ctx.fillStyle='rgba(0,0,0,.2)';ctx.beginPath();ctx.ellipse(wx,wy,7,3.2,0,0,7);ctx.fill();
     ctx.save();ctx.translate(wx+lean,wy-8-bob);
+    ctx.scale(this.dir===1?-1:1,1);
     ctx.font='15px "Segoe UI Emoji"';ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillStyle='#000'; // แก้บั๊ก: เดิมค้าง fillStyle เงาดำโปร่ง .2 ทำให้ตัวสัตว์จางมองแทบไม่เห็น
     ctx.fillText(this.emoji,0,0);
