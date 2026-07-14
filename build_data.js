@@ -11,6 +11,15 @@ const SHEET = {
   schedule: 'https://docs.google.com/spreadsheets/d/14ZyWxubxyrpJN3GGN8YE8llP6ynZHHMOHyzrh3v6sng/gviz/tq?tqx=out:csv',
 };
 const M_CLASSES = { C17:'ม.1/1', C18:'ม.1/2', C19:'ม.2/1', C20:'ม.2/2', C21:'ม.3/1', C22:'ม.3/2' };
+// นักเรียนจริง: MASTER + YEARLY (โครงสร้างชีตโรงเรียน: แถว1 title, แถว2 header, แถว3 คำอธิบาย, แถว4+ ข้อมูล)
+const MASTER_ID = '16usk65fYdcUmHLhzEIQmQVYY8A_IW-UFgY7kPis5pPo';
+const YEARLY_ID = '14MamZ_Uy4hFRweJRTL_bW8PMEntEk_q0srmPQD5bU78';
+const gviz = (id, sheet) => `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${sheet}`;
+const SHEET_STU = {
+  students: gviz(MASTER_ID, 'Students'),
+  classes:  gviz(MASTER_ID, 'Classes'),
+  enroll:   gviz(YEARLY_ID, 'Enrollment'),
+};
 // ห้องพิเศษมัธยม (กติกาเดียวกับ timetable.html + regex ชื่อวิชากันตกหล่น)
 const DOME_SIDS = new Set(['SB009','SB027','SB045']);
 const COMP_SIDS = new Set(['SB014','SB015','SB032','SB033','SB050','SB055']);
@@ -37,18 +46,18 @@ function extract(file) {
   const SCH  = eval(s.match(/const SCH_RAW = (\[[\s\S]*?\n\]);/)[1]);
   return { T, CL, AREA, SCH };
 }
-function parseCSV(text) {
+const parseLine = line => {
+  const cells = []; let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { if (inQ && line[i+1] === '"') { cur += '"'; i++; } else inQ = !inQ; }
+    else if (c === ',' && !inQ) { cells.push(cur.trim()); cur = ''; }
+    else cur += c;
+  }
+  cells.push(cur.trim()); return cells;
+};
+function parseCSV(text) { // แถวแรก = header → objects
   const lines = text.trim().split(/\r?\n/);
-  const parseLine = line => {
-    const cells = []; let cur = '', inQ = false;
-    for (let i = 0; i < line.length; i++) {
-      const c = line[i];
-      if (c === '"') { if (inQ && line[i+1] === '"') { cur += '"'; i++; } else inQ = !inQ; }
-      else if (c === ',' && !inQ) { cells.push(cur.trim()); cur = ''; }
-      else cur += c;
-    }
-    cells.push(cur.trim()); return cells;
-  };
   const headers = parseLine(lines[0]);
   return lines.slice(1).map(l => {
     const v = parseLine(l), o = {};
@@ -56,6 +65,7 @@ function parseCSV(text) {
     return o;
   }).filter(r => r[headers[0]]);
 }
+const csvRaw = text => text.trim().split(/\r?\n/).map(parseLine); // ดิบเป็น array (ชีตโรงเรียนใช้ index)
 
 const teachers = {};  // name → {name, areas:{}, lvCnt:[ป.1-3, ป.4-6, ม.]}
 const ttP = {}, ttM = {};  // ครู → วัน → คาบ → {s,c,r?}
@@ -154,6 +164,29 @@ async function main() {
     }
   }
 
+  // ---- นักเรียนจริง ----
+  const [stuR, clsR, enR] = await Promise.all(
+    [SHEET_STU.students, SHEET_STU.classes, SHEET_STU.enroll].map(u =>
+      fetch(u).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status} ${u}`); return r.text(); })
+        .then(csvRaw)));
+  const roomOfClass = {}; // class_id (C05..C22) → ห้องในเกม (P11..P62 / C17..C22)
+  clsR.slice(3).forEach(r => {
+    const [cid, , , name, , , active] = r;
+    if (active !== 'TRUE') return;
+    if (/^ป\./.test(name)) roomOfClass[cid] = 'P' + name.replace(/[^0-9]/g, '');
+    else if (M_CLASSES[cid]) roomOfClass[cid] = cid; // อนุบาลไม่มีในแผนที่ → ข้าม
+  });
+  const stuMap = {}; stuR.slice(3).forEach(r => { if (r[0]) stuMap[r[0]] = { nick: r[6], first: r[4], g: r[7] }; });
+  const students = [];
+  enR.slice(3).forEach(r => {
+    const [, stuId, cid, year, num, , , , st] = r;
+    if (year !== '2569' || st !== 'active') return;
+    const room = roomOfClass[cid], s = stuMap[stuId];
+    if (!room || !s) return;
+    students.push({ n: s.nick || s.first, c: room, g: /ช/.test(s.g) ? 0 : 1, no: +num || 0 });
+  });
+  students.sort((a, b) => a.c < b.c ? -1 : a.c > b.c ? 1 : a.no - b.no);
+
   // ครู: lv = ช่วงชั้นที่สอนมากสุด, group = กลุ่มสาระที่สอนมากสุด
   const list = Object.values(teachers).map(t => {
     const top = Object.entries(t.areas).sort((a, b) => b[1] - a[1])[0];
@@ -162,7 +195,7 @@ async function main() {
   });
 
   fs.writeFileSync('data.js',
-    'const SCHOOL=' + JSON.stringify({ teachers: list, classes, ttP, ttM, ctP, ctM }) + ';\n', 'utf8');
+    'const SCHOOL=' + JSON.stringify({ teachers: list, classes, ttP, ttM, ctP, ctM, students }) + ';\n', 'utf8');
 
   // self-check
   const cnt = tt => Object.values(tt).reduce((a, d) =>
@@ -171,6 +204,9 @@ async function main() {
   console.log(`✅ ครู ${list.length} คน (มัธยม ${list.filter(t => t.lv === 2).length}) · ห้อง ${Object.keys(classes).length}`);
   console.log(`   คาบประถม ${cnt(ttP)} · คาบมัธยม ${cnt(ttM)} (${mSlots} แถว) · ชนกัน ${conflicts}`);
   console.log(`   ครูสอนควบสองระดับ: ${both.join(', ') || 'ไม่มี'}`);
-  if (list.length < 35 || cnt(ttP) < 300 || cnt(ttM) < 200) { console.error('❌ ข้อมูลน้อยผิดปกติ'); process.exit(1); }
+  const perRoom = {}; students.forEach(s => perRoom[s.c] = (perRoom[s.c] || 0) + 1);
+  console.log(`   นักเรียนจริง ${students.length} คน · ${Object.keys(perRoom).length} ห้อง (${Object.entries(perRoom).map(([k, v]) => k + ':' + v).join(' ')})`);
+  if (list.length < 35 || cnt(ttP) < 300 || cnt(ttM) < 200 || students.length < 300 || Object.keys(perRoom).length !== 18)
+    { console.error('❌ ข้อมูลน้อยผิดปกติ'); process.exit(1); }
 }
 main().catch(e => { console.error('❌', e.message); process.exit(1); });

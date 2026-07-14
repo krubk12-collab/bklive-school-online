@@ -112,7 +112,7 @@ const CLASSROOMS=ROOMS.filter(r=>r.type==='classroom').map(r=>r.id);
 const STAFF_OF=['staff','staff2','m_staff']; // ห้องพักครูตามช่วงชั้น (lv 0/1/2)
 const GW=100,GH=42;
 const FLAGP={x:54,y:16};                 // เสาธง (แถวหน้าสุดของลาน)
-const PLAZA={x1:40,y1:16,x2:69,y2:35};   // ลานเข้าแถวใหญ่
+const PLAZA={x1:40,y1:16,x2:69,y2:38};   // ลานเข้าแถวใหญ่ 30×23 (~690 ช่อง ≥ นักเรียนจริง+ครูทั้งหมด)
 
 const DAYS=['จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์'];
 // สองระดับใช้เวลาคนละชุด (หน่วย: นาทีของวัน) — ป. คาบ 2-7 เลิก 15:30 / ม. คาบ 1-8 เลิก 16:30
@@ -126,20 +126,17 @@ const fmtT=m=>String(m/60|0).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
 const zP=(Z,t)=>Z.find(p=>t>=p.s&&t<p.e)||null;
 const inAsm=t=>t>=ASM.s&&t<ASM.e;
 
-const NICK=['ต้นกล้า','ใบบัว','น้ำใส','ข้าวปั้น','มายด์','ภูผา','แพรวา','เจได','บีม','ออม',
-'กันต์','พลอย','เนย','ไอซ์','ต้นน้ำ','ฟ้าใส','โฟกัส','การ์ตูน','เพชร','วุ้นเส้น',
-'ปุณณ์','แตงโม','บอส','มีนา','เข็ม','ธาม','ขนุน'];
 const SKIN=['#f2c9a0','#e8b088','#f5d6b3','#d99b6c'];
 const HAIR=['#2b2b2b','#4a2e1c','#111827','#3a2a1a'];
 
-// ครูจริงจาก data.js (ป.+ม. merge คนสอนควบ) + นักเรียน mock 3 คน/ห้อง (รอนักเรียนจริงจาก MASTER)
+// ครูจริงจาก data.js (ป.+ม. merge คนสอนควบ) + นักเรียนจริงจาก MASTER (ชื่อเล่น, ตัวโตตามชั้น)
 const TEACHERS=SCHOOL.teachers.map((t,i)=>({id:i,name:t.disp,full:t.name,group:t.group,lv:t.lv,
   skin:SKIN[i%SKIN.length],hair:HAIR[(i*3)%HAIR.length],style:i%3,
   shirt:GROUPS[t.group].color,pants:'#3a3a3a',scale:1}));
-const STUDENTS=CLASSROOMS.flatMap((cid,r)=>[0,1,2].map(k=>{const i=r*3+k;
-  return{id:100+i,name:NICK[i%NICK.length],home:cid,student:true,mz:cid[0]==='C',
-  skin:SKIN[(i*2)%SKIN.length],hair:'#1a1a1a',style:i%2?2:0,
-  shirt:'#f8f8f8',pants:'#1e3a5f',scale:cid[0]==='C'?0.9:0.8};}));
+const STUDENTS=SCHOOL.students.map((st,i)=>({id:100+i,name:st.n,home:st.c,student:true,mz:st.c[0]==='C',
+  skin:SKIN[(i*2)%SKIN.length],hair:'#1a1a1a',style:st.g?1:0,
+  shirt:'#f8f8f8',pants:st.g?'#7a2333':'#1e3a5f',
+  scale:st.c[0]==='C'?0.88:0.7+(+st.c[1]||1)*0.02}));
 
 function hash(a,b,c){let x=(Math.imul(a,73856093)^Math.imul(b,19349663)^Math.imul(c,83492791))>>>0;
   x=Math.imul(x^(x>>>15),2246822507);x^=x>>>13;return x>>>0;}
@@ -168,7 +165,7 @@ function studentRoomOf(st,d,t_m){
   if(inAsm(t_m))return'plaza';
   const Z=st.mz?MPER:PPER,per=zP(Z,t_m);
   if(!per)return st.mz?'dome':'sport';                    // เลิกเรียน → วิ่งเล่น
-  if(per.lunch)return st.id%2?(st.mz?'dome':'sport'):'canteen';
+  if(per.lunch)return st.id%3?(st.mz?'dome':'sport'):'canteen'; // ponytail: 1/3 กินข้าว 2/3 วิ่งเล่น กันโรงอาหารแน่นเกิน (นร.จริง 544)
   const e=(st.mz?SCHOOL.ctM:SCHOOL.ctP)[st.home]?.[d+1]?.[per.n];
   if(!e)return st.home;
   return st.mz?(e.r||st.home):(SUBJ_ROOM(e.s)||st.home);
