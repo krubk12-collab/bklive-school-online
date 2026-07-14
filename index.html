@@ -30,6 +30,7 @@
   main{flex:1;position:relative;overflow:hidden}
   canvas{display:block;cursor:grab}
   canvas.drag{cursor:grabbing}
+  /* ponytail: legend sits under the open sidebar (both occupy the 0-230px band); toggle sidebar closed (☰) to see it. No JS-state-free CSS fix exists for "shift only while open" */
   .legend{position:absolute;left:10px;bottom:10px;background:rgba(255,255,255,.92);
           border:1px solid var(--line);border-radius:10px;padding:7px 9px;font-size:11px;
           display:flex;flex-wrap:wrap;gap:5px 11px;max-width:300px}
@@ -73,14 +74,14 @@
   <label class="tg"><input type="checkbox" id="bell" checked> 🔔</label>
   <div class="stat" id="stat"></div>
 </header>
-<aside id="sidebar" class="open">
-  <div class="sbHead"><input id="searchBox" placeholder="ค้นหาครู/นักเรียน..."><button id="sbToggle">☰</button></div>
-  <div id="sbBody">
-    <div class="sbSection"><h4>ห้อง/อาคาร</h4><div id="roomList"></div></div>
-    <div class="sbSection"><h4>คน</h4><div id="peopleList"></div></div>
-  </div>
-</aside>
 <main>
+  <aside id="sidebar" class="open">
+    <div class="sbHead"><input id="searchBox" placeholder="ค้นหาครู/นักเรียน..."><button id="sbToggle">☰</button></div>
+    <div id="sbBody">
+      <div class="sbSection"><h4>ห้อง/อาคาร</h4><div id="roomList"></div></div>
+      <div class="sbSection"><h4>คน</h4><div id="peopleList"></div></div>
+    </div>
+  </aside>
   <canvas id="cv"></canvas>
   <div class="legend" id="legend"></div>
   <div class="hint">ลากเลื่อน · ล้อเมาส์ซูม · คลิกครู/นักเรียน/อาคาร/สัตว์</div>
