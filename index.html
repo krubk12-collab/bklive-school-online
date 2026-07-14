@@ -821,7 +821,7 @@ cv.addEventListener('touchstart',e=>{e.preventDefault();
     cv.classList.add('drag');
   }else if(e.touches.length===2){
     const p=pinchInfo(e.touches),[wx,wy]=screenToWorld(p.mx,p.my);
-    touch={mode:'pinch',d0:p.d,s0:cam.s,wx,wy};
+    touch={mode:'pinch',d0:Math.max(p.d,1),s0:cam.s,wx,wy};
   }
 },{passive:false});
 cv.addEventListener('touchmove',e=>{e.preventDefault();if(!touch)return;
