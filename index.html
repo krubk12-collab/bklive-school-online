@@ -78,41 +78,67 @@ const GROUPS=[
  {name:'สุขศึกษาและพลศึกษา',color:'#0891b2'},{name:'ศิลปะ',color:'#9333ea'},
  {name:'การงาน/คอมพิวเตอร์',color:'#475569'},{name:'ภาษาต่างประเทศ',color:'#db2777'}];
 const GEMOTE=['📖','🧮','🔬','🗺️','⚽','🎨','💻','🗣️'];
-const TYPE_ICON={classroom:'📚',sport:'⚽',art:'🎨',music:'🎵',computer:'💻',science:'🔬',library:'📖',staff:'☕',canteen:'🍽️',plaza:'🚩'};
+const TYPE_ICON={classroom:'📚',sport:'⚽',art:'🎨',music:'🎵',computer:'💻',science:'🔬',library:'📖',staff:'☕',canteen:'🍽️',plaza:'🚩',
+  gym:'🏋️',playground:'🛝',office:'🗂️',shop:'🛒',store711:'🏪',temple:'🛕',dome:'🚩'};
 const FLOOR={classroom:'#f3e9d2',computer:'#d9e2ec',science:'#d7f0dd',art:'#ecdcf7',music:'#f6e3fb',
-             sport:'#7cc47f',library:'#fdeccb',staff:'#e7ede6',canteen:'#ffe6cc'};
+             sport:'#7cc47f',library:'#fdeccb',staff:'#e7ede6',canteen:'#ffe6cc',
+             gym:'#e0e7ef',playground:'#fde68a',office:'#e0f2e9',shop:'#fef3c7',store711:'#fee2e2',temple:'#fef0d5',dome:'#e8e2d0'};
 const ACCENT={classroom:'#b98a4b',computer:'#475569',science:'#16a34a',art:'#9333ea',music:'#a855f7',
-              sport:'#0891b2',library:'#f59e0b',staff:'#64748b',canteen:'#f97316',plaza:'#b91c1c'};
+              sport:'#0891b2',library:'#f59e0b',staff:'#64748b',canteen:'#f97316',plaza:'#b91c1c',
+              gym:'#334155',playground:'#f59e0b',office:'#0f766e',shop:'#d97706',store711:'#16a34a',temple:'#b45309',dome:'#b91c1c'};
 const ROOF={classroom:'#c65a3d',computer:'#5b6b7d',science:'#3d8f57',art:'#8b4bb5',music:'#a05cc4',
-            library:'#d98b2b',staff:'#7a8577',canteen:'#e07b3a'};
+            library:'#d98b2b',staff:'#7a8577',canteen:'#e07b3a',
+            gym:'#475569',office:'#0d5c4a',shop:'#b45309',store711:'#15803d',temple:'#c2410c'};
 const PROP={classroom:'📖',computer:'🖥️',science:'🧪',art:'🎨',music:'🥁',library:'📚',canteen:'🍲',staff:'☕'};
 
-// ผังจริง 2 โซน: ประถม (ซ้าย) + มัธยม (ขวา) คั่นด้วยลานเสาธงใหญ่
-// สเกลใหญ่: ห้อง 7×6 (รองรับนักเรียนจริง ~30 คน/ห้อง) + ลาน 600 ช่อง (เข้าแถวทั้งโรงเรียนไม่ทับกัน)
+// ผังจริงตามภาพถ่ายดาวเทียม: เรียงเหนือ-ใต้ (ประตูหน้า→อาคารประถม→อาคารมัธยม→โดม→ประตูหลัง→วัด)
+const GW=100,GH=112;
 const CLASS_ORDER=['P11','P12','P21','P22','P31','P32','P41','P42','P51','P52','P61','P62'];
 const M_ORDER=['C17','C18','C19','C20','C21','C22'];
+// อาคารประถม: บล็อก 4 คอลัมน์ x 3 แถว (มาตรฐานเดิม แค่ย้าย anchor)
 const ROOMS=CLASS_ORDER.map((id,i)=>({id,label:SCHOOL.classes[id],type:'classroom',
-  gx:2+(i%4)*9,gy:2+((i/4)|0)*8,gw:7,gh:6}));
+  gx:26+(i%4)*9,gy:39+((i/4)|0)*8,gw:7,gh:6}));
+// อาคารมัธยม: บล็อก 3 คอลัมน์ x 2 แถว
 M_ORDER.forEach((id,i)=>ROOMS.push({id,label:SCHOOL.classes[id],type:'classroom',
-  gx:72+(i%3)*9,gy:2+((i/3)|0)*8,gw:7,gh:6}));
+  gx:30+(i%3)*9,gy:65+((i/3)|0)*8,gw:7,gh:6}));
 ROOMS.push(
- {id:'staff',  label:'ห้องพักครู ช่วงชั้น 1',type:'staff',  gx:2, gy:26,gw:7,gh:5},
- {id:'canteen',label:'โรงอาหาร',            type:'canteen',gx:11,gy:26,gw:7,gh:5},
- {id:'comp',   label:'ห้องคอมประถม',        type:'computer',gx:20,gy:26,gw:7,gh:5},
- {id:'artmus', label:'ห้องศิลปะ-ดนตรี',      type:'art',    gx:29,gy:26,gw:7,gh:5},
- {id:'staff2', label:'ห้องพักครู ช่วงชั้น 2',type:'staff',  gx:2, gy:33,gw:7,gh:5},
- {id:'sport',  label:'สนามฟุตบอล',          type:'sport',  gx:40,gy:2, gw:14,gh:12},
- {id:'m_comp', label:'ห้องคอมมัธยม (LAB2)', type:'computer',gx:72,gy:18,gw:7,gh:5},
- {id:'m_sci',  label:'ห้องแล็บวิทย์',        type:'science',gx:81,gy:18,gw:7,gh:5},
- {id:'m_staff',label:'ห้องพักครูมัธยม',      type:'staff',  gx:90,gy:18,gw:7,gh:5},
- {id:'dome',   label:'โดมกีฬา (มัธยม)',     type:'sport',  gx:72,gy:26,gw:14,gh:10});
+ // แถบเหนือสุด: ประตูหน้า+ร้านค้า+7-11
+ {id:'store711',label:'ร้านสะดวกซื้อ 7-11',type:'store711',gx:6, gy:3, gw:6,gh:5},
+ {id:'shop1',label:'ร้านค้าหน้าโรงเรียน 1',type:'shop',gx:30,gy:3,gw:4,gh:3},
+ {id:'shop2',label:'ร้านค้าหน้าโรงเรียน 2',type:'shop',gx:36,gy:3,gw:4,gh:3},
+ {id:'shop3',label:'ร้านค้าหน้าโรงเรียน 3',type:'shop',gx:42,gy:3,gw:4,gh:3},
+ {id:'shop4',label:'ร้านค้าหน้าโรงเรียน 4',type:'shop',gx:58,gy:3,gw:4,gh:3},
+ {id:'shop5',label:'ร้านค้าหน้าโรงเรียน 5',type:'shop',gx:64,gy:3,gw:4,gh:3},
+ // แถบสนาม/โรงยิม/โรงอาหาร/ห้องสมุด/สนามเด็กเล่น (ตะวันตก+กลาง)
+ {id:'gym',     label:'โรงยิม',              type:'gym',      gx:8, gy:9, gw:12,gh:10},
+ {id:'sport',   label:'สนามฟุตบอล',          type:'sport',    gx:43,gy:9, gw:14,gh:12},
+ {id:'canteen', label:'โรงอาหาร',            type:'canteen',  gx:8, gy:20,gw:12,gh:9},
+ {id:'library', label:'ห้องสมุด',            type:'library',  gx:8, gy:30,gw:8, gh:6},
+ {id:'playground',label:'สนามเด็กเล่น',      type:'playground',gx:17,gy:30,gw:8, gh:6},
+ // อาคารประถม: ห้องพิเศษ + ห้องผู้บริหาร + ห้องพักครู
+ {id:'comp',    label:'ห้องคอมประถม',        type:'computer', gx:17,gy:39,gw:7,gh:6},
+ {id:'artmus',  label:'ห้องศิลปะ-ดนตรี',      type:'art',      gx:17,gy:47,gw:7,gh:6},
+ {id:'office',  label:'ห้องผู้บริหาร',        type:'office',   gx:62,gy:39,gw:7,gh:6},
+ {id:'staff',   label:'ห้องพักครู ช่วงชั้น 1',type:'staff',    gx:62,gy:47,gw:7,gh:5},
+ {id:'staff2',  label:'ห้องพักครู ช่วงชั้น 2',type:'staff',    gx:62,gy:53,gw:7,gh:5},
+ // อาคารมัธยม: ห้องพิเศษ (วิทย์ 2 ห้อง)
+ {id:'m_comp',  label:'ห้องคอมมัธยม (LAB2)', type:'computer', gx:57,gy:65,gw:7,gh:5},
+ {id:'m_sci',   label:'ห้องแล็บวิทย์ 1',      type:'science',  gx:57,gy:71,gw:7,gh:5},
+ {id:'m_sci2',  label:'ห้องแล็บวิทย์ 2',      type:'science',  gx:57,gy:77,gw:7,gh:5},
+ {id:'m_staff', label:'ห้องพักครูมัธยม',      type:'staff',    gx:57,gy:83,gw:7,gh:5},
+ // โดมกิจกรรมเข้าแถว (แทนลานเสาธงเดิม)
+ {id:'dome',    label:'โดมกิจกรรมเข้าแถว',   type:'dome',     gx:65,gy:60,gw:30,gh:24},
+ // วัด (นอกรั้ว ใต้ประตูหลัง)
+ {id:'temple',  label:'วัดบางโค + ศาลาวัด',  type:'temple',   gx:70,gy:95,gw:20,gh:10});
 const ROOM_BY_ID=Object.fromEntries(ROOMS.map(r=>[r.id,r]));
+// ponytail: ห้อง 'plaza' เสมือน (ไม่มีพื้นที่จริงในกริดแล้ว) — schedOf/studentRoomOf (นอก scope งานนี้) ยังคืน rid:'plaza'
+// ช่วงเข้าแถว ต้องคงไว้กัน ROOM_BY_ID['plaza'] undefined ล่ม จนกว่า Task 3 จะเปลี่ยนไปคืน 'dome' แทน
 ROOM_BY_ID.plaza={id:'plaza',label:'ลานเสาธง',type:'plaza'};
 const CLASSROOMS=ROOMS.filter(r=>r.type==='classroom').map(r=>r.id);
-const STAFF_OF=['staff','staff2','m_staff']; // ห้องพักครูตามช่วงชั้น (lv 0/1/2)
-const GW=100,GH=42;
-const FLAGP={x:54,y:16};                 // เสาธง (แถวหน้าสุดของลาน)
-const PLAZA={x1:40,y1:16,x2:69,y2:38};   // ลานเข้าแถวใหญ่ 30×23 (~690 ช่อง ≥ นักเรียนจริง+ครูทั้งหมด)
+const STAFF_OF=['staff','staff2','m_staff'];
+const FLAGP={x:80,y:62};                 // เสาธงในโดม
+const GATE_FRONT={x:50,y:2};
+const GATE_BACK={x:80,y:87};
 
 const DAYS=['จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์'];
 // สองระดับใช้เวลาคนละชุด (หน่วย: นาทีของวัน) — ป. คาบ 2-7 เลิก 15:30 / ม. คาบ 1-8 เลิก 16:30
@@ -147,6 +173,11 @@ function SUBJ_ROOM(s){
   if(/ทัศนศิลป์|ดนตรี|นาฏศิลป์/.test(s))return'artmus';
   return null;
 }
+// ห้องแล็บวิทย์มัธยม 2 ห้อง — สลับตามคลาส (เรียก Task 3 ใน schedOf)
+function sciRoomFor(rid,cls){
+  if(rid!=='m_sci')return rid;
+  return hash((cls||'').charCodeAt(0)||1,2,2)%2?'m_sci2':'m_sci';
+}
 // ครูคนหนึ่งอาจสอนควบสองระดับ — เช็คคาบมัธยมก่อน (ตารางจริงเวลาไม่ชนกัน)
 function schedOf(t,d,t_m){
   if(inAsm(t_m))return{rid:'plaza'};
@@ -176,36 +207,47 @@ const grid=[],plotTiles={},walkTiles={};
 for(let y=0;y<GH;y++){grid[y]=[];for(let x=0;x<GW;x++)grid[y][x]={plot:null,deco:null,path:false,desk:false};}
 ROOMS.forEach(r=>{plotTiles[r.id]=[];
   for(let y=r.gy;y<r.gy+r.gh;y++)for(let x=r.gx;x<r.gx+r.gw;x++){grid[y][x].plot=r.id;plotTiles[r.id].push({x,y});}});
+const OPEN_TYPES=['sport','playground','dome']; // เดินเข้า-ออกได้รอบด้าน ไม่มีประตูเดี่ยว
 const DOOR={};
-ROOMS.forEach(r=>{if(r.type!=='sport')DOOR[r.id]={x:r.gx+(r.gw>>1),y:r.gy+r.gh-1};});
-// โต๊ะ/เฟอร์นิเจอร์ (ช่องกลางห้อง เดินอ้อมได้) — ห้องเรียน 7×6, ห้องพิเศษ 7×5
+ROOMS.forEach(r=>{if(!OPEN_TYPES.includes(r.type))DOOR[r.id]={x:r.gx+(r.gw>>1),y:r.gy+r.gh-1};});
 const DESK_LAYOUT={classroom:[[1,2],[2,2],[3,2],[4,2],[5,2],[1,4],[2,4],[3,4],[4,4],[5,4]],
  computer:[[1,1],[2,1],[4,1],[5,1],[1,3],[2,3],[4,3],[5,3]],
  science:[[1,1],[3,1],[5,1],[1,3],[5,3]],
  art:[[1,1],[3,1],[5,1],[1,3],[5,3]],
- canteen:[[1,1],[2,1],[4,1],[5,1],[1,3],[2,3],[4,3],[5,3]],
- staff:[[1,1],[5,3]]};
+ canteen:[[1,1],[2,1],[3,1],[4,1],[5,1],[6,1],[8,1],[9,1],[10,1],
+          [1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[8,4],[9,4],[10,4],
+          [1,7],[2,7],[4,7],[5,7],[7,7],[8,7]],
+ staff:[[1,1],[5,3]],
+ library:[[1,1],[3,1],[5,1],[1,3],[3,3],[5,3]]};
 ROOMS.forEach(r=>{(DESK_LAYOUT[r.type]||[]).forEach(([dx,dy])=>{grid[r.gy+dy][r.gx+dx].desk=true;});
   walkTiles[r.id]=plotTiles[r.id].filter(t=>!grid[t.y][t.x].desk);});
-// ทางเดินปูน (กว้าง 2 ช่อง)
-for(const x of[9,10,18,19,27,28,36,37,70,71,79,80,88,89])for(let y=1;y<=38;y++)if(!grid[y][x].plot)grid[y][x].path=true;
-for(const y of[8,9,16,17,24,25,31,32])for(let x=1;x<=97;x++)if(!grid[y][x].plot)grid[y][x].path=true;
+// ทางเดินปูน (คั่นระหว่างบล็อกอาคารตามแนวตั้งใหม่)
+for(const y of[6,7,8,18,19,37,38,63,64,88,89,90,91,92,93,94])for(let x=1;x<=98;x++)if(!grid[y][x].plot)grid[y][x].path=true;
+for(const x of[7,21,25,61,80])for(let y=1;y<=110;y++)if(!grid[y][x].plot)grid[y][x].path=true;
 for(const rid in DOOR){const d=DOOR[rid];if(grid[d.y+1]&&!grid[d.y+1][d.x].plot)grid[d.y+1][d.x].path=true;}
-// ลานเสาธง (ปูนลาน)
-for(let y=PLAZA.y1;y<=PLAZA.y2;y++)for(let x=PLAZA.x1;x<=PLAZA.x2;x++)if(!grid[y][x].plot)grid[y][x].path=true;
+// โดม (ลานเข้าแถวใหม่)
+const DOME_RECT={x1:65,y1:60,x2:94,y2:83};
+for(let y=DOME_RECT.y1;y<=DOME_RECT.y2;y++)for(let x=DOME_RECT.x1;x<=DOME_RECT.x2;x++)if(!grid[y][x].plot)grid[y][x].path=true;
 grid[FLAGP.y][FLAGP.x].deco='flag';
-// สระน้ำ + ต้นไม้ขอบ
-for(let y=34;y<=37;y++)for(let x=12;x<=18;x++)if(!grid[y][x].plot&&!grid[y][x].path)grid[y][x].deco='pond';
+// สระน้ำเดิม (คงไว้)
+for(let y=8;y<=11;y++)for(let x=30;x<=36;x++)if(!grid[y][x].plot&&!grid[y][x].path)grid[y][x].deco='pond';
+// คลองบางโค (ตะวันตก ยาวขนานโรงเรียน)
+for(let y=8;y<=100;y++)for(let x=0;x<=2;x++)grid[y][x].deco='canal';
+// คลองบางใหญ่ (ใต้วัด)
+for(let y=106;y<=108;y++)for(let x=60;x<=100&&x<GW;x++)grid[y][x].deco='canal';
 for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
   const c=grid[y][x];if(c.plot||c.deco||c.path)continue;
   if((x<2||x>GW-3||y<2||y>GH-3)&&hash(x+7,y+7,3)%5===0)c.deco='tree';}
-// แถวเข้าแถว (ครูหน้า นักเรียนหลัง)
+// ประตูหน้า/หลัง ต้องเดินได้เสมอ (เคลียร์ deco ที่อาจถูกสุ่มทับ)
+grid[GATE_FRONT.y][GATE_FRONT.x].deco='gate';
+grid[GATE_BACK.y][GATE_BACK.x].deco='gate';
+// แถวเข้าแถวในโดม
 const FORM=[];
-for(let y=PLAZA.y1;y<=PLAZA.y2;y++)for(let x=PLAZA.x1;x<=PLAZA.x2;x++)
+for(let y=DOME_RECT.y1;y<=DOME_RECT.y2;y++)for(let x=DOME_RECT.x1;x<=DOME_RECT.x2;x++)
   if(!grid[y][x].deco)FORM.push({x,y});
-walkTiles.plaza=FORM;plotTiles.plaza=FORM;
+walkTiles.dome=FORM;plotTiles.dome=FORM;
 
-const walkable=(x,y)=>x>=0&&y>=0&&x<GW&&y<GH&&!grid[y][x].desk&&(grid[y][x].plot||!grid[y][x].deco);
+const walkable=(x,y)=>x>=0&&y>=0&&x<GW&&y<GH&&!grid[y][x].desk&&(grid[y][x].plot||!grid[y][x].deco||grid[y][x].deco==='gate');
 function canStep(fx,fy,tx,ty){
   if(!walkable(tx,ty))return false;
   const fp=grid[fy][fx].plot,tp=grid[ty][tx].plot;
@@ -320,7 +362,7 @@ function prerender(){
 function drawBack(r){
   const A=iso(r.gx,r.gy),B=iso(r.gx+r.gw,r.gy),D=iso(r.gx,r.gy+r.gh);
   const pA=[A[0],A[1]-PH],pB=[B[0],B[1]-PH],pD=[D[0],D[1]-PH];
-  if(r.type!=='sport'){
+  if(!OPEN_TYPES.includes(r.type)){
     const tA=[pA[0],pA[1]-WH],tB=[pB[0],pB[1]-WH],tD=[pD[0],pD[1]-WH];
     quad(ctx,pA,pD,tD,tA,'#f6efdd');
     quad(ctx,pA,pB,tB,tA,'#eadfc4');
@@ -342,7 +384,7 @@ function drawBack(r){
     }else win(A,B,Math.min(3,r.gw-2),[0.894,0.447]);
   }
   // ป้ายชื่อ
-  const sy=pA[1]-(r.type==='sport'?6:WH+RH+14);
+  const sy=pA[1]-(OPEN_TYPES.includes(r.type)?6:WH+RH+14);
   const tx=`${TYPE_ICON[r.type]} ${r.label}`;
   ctx.font='bold 12px Leelawadee UI,Segoe UI';const w=ctx.measureText(tx).width+14;
   ctx.fillStyle='#5b3b1a';ctx.fillRect(pA[0]-1.5,sy-20,3,20);
@@ -351,7 +393,7 @@ function drawBack(r){
   ctx.fillStyle='#1f2937';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(tx,pA[0],sy-28);
 }
 function drawFront(r){
-  if(r.type==='sport')return;
+  if(OPEN_TYPES.includes(r.type))return;
   const B=iso(r.gx+r.gw,r.gy),C=iso(r.gx+r.gw,r.gy+r.gh),D=iso(r.gx,r.gy+r.gh);
   const pB=[B[0],B[1]-PH],pC=[C[0],C[1]-PH],pD=[D[0],D[1]-PH];
   const RRH=7,d=DOOR[r.id];
@@ -530,7 +572,7 @@ function frame(ts){const dt=Math.min(0.05,(ts-last)/1000||0);last=ts;
   chars.forEach(c=>c.update(dt));critters.forEach(c=>c.update(dt));
   const ents=[],tags=[];
   ROOMS.forEach(r=>{ents.push({d:r.gx+r.gy+0.01,f:()=>drawBack(r)});
-    if(r.type!=='sport')ents.push({d:r.gx+r.gw+r.gy+r.gh-0.01,f:()=>drawFront(r)});});
+    if(!OPEN_TYPES.includes(r.type))ents.push({d:r.gx+r.gw+r.gy+r.gh-0.01,f:()=>drawFront(r)});});
   chars.forEach(c=>ents.push({d:c.fx+c.fy,f:()=>{const wy=c.draw();
     tags.push({wx:iso(c.fx,c.fy)[0],wy,c});}}));
   critters.forEach(c=>ents.push({d:c.fx+c.fy,f:()=>{const wy=c.draw();
@@ -693,7 +735,7 @@ function selfCheck(){let ok=true;
     if(grid[d.y][d.x].desk){console.error('โต๊ะขวางประตู:',rid);ok=false;}
     if(!walkable(d.x,d.y+1)||grid[d.y+1][d.x].plot){console.error('หน้าประตูตัน:',rid);ok=false;}}
   ROOMS.forEach(r=>{ // ทุกช่องเดินได้ในห้องต้องถึงประตู (โต๊ะไม่ปิดทาง)
-    if(r.type==='sport')return;const d=DOOR[r.id];
+    if(OPEN_TYPES.includes(r.type))return;const d=DOOR[r.id];
     walkTiles[r.id].forEach(t=>{if(!bfs(t.x,t.y,d.x,d.y).length&&(t.x!==d.x||t.y!==d.y)){
       console.error('โต๊ะปิดทางใน',r.id,t);ok=false;}});});
   const p1=bfs(DOOR.P11.x,DOOR.P11.y,DOOR.m_staff.x,DOOR.m_staff.y); // ข้ามโซน ป.→ม.
@@ -701,6 +743,15 @@ function selfCheck(){let ok=true;
   console.assert(p1.length>0&&p2.length>0,'❌ เดินข้ามโซน/ไปลานเสาธงไม่ได้');
   console.assert(chars.length===TEACHERS.length+STUDENTS.length,'จำนวนตัวละครไม่ครบ');
   console.assert(FORM.length>=chars.length,'❌ ลานเสาธงเล็กกว่าจำนวนคน '+FORM.length+'/'+chars.length);
+  // ห้ามมีสองห้องทับกัน
+  const occ={};
+  ROOMS.forEach(r=>{for(let y=r.gy;y<r.gy+r.gh;y++)for(let x=r.gx;x<r.gx+r.gw;x++){
+    const k=x+','+y;if(occ[k]){console.error('ห้องทับกัน:',occ[k],r.id,k);ok=false;}occ[k]=r.id;}});
+  console.assert(FORM.length>=TEACHERS.length+STUDENTS.length,'❌ โดมเล็กกว่าจำนวนคน '+FORM.length+'/'+(TEACHERS.length+STUDENTS.length));
+  const pGate=bfs(GATE_FRONT.x,GATE_FRONT.y,DOOR.office.x,DOOR.office.y);
+  console.assert(pGate.length>0,'❌ เดินจากประตูหน้าไปห้องผู้บริหารไม่ได้');
+  const pBack=bfs(GATE_BACK.x,GATE_BACK.y,FORM[0].x,FORM[0].y);
+  console.assert(pBack.length>0,'❌ เดินจากประตูหลังไปโดมไม่ได้');
   console.log(ok&&p1.length&&p2.length?'✅ self-check ผ่าน — ประตู/โต๊ะ/ข้ามโซน/ลานเสาธง เดินถึงหมด':'❌ self-check ล้มเหลว');
 }
 
