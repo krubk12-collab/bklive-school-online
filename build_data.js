@@ -1,10 +1,7 @@
-// ดึงตารางสอนจริง: ประถมจาก timetable_p13/p46.html + มัธยมสดจาก Google Sheets → data.js
+// ดึงตารางสอนจริงทั้งหมดสดจาก Google Sheets → data.js
+// ประถม = แท็บ "ตารางประถม" ใน SCHEDULE_SS (import ครั้งแรกด้วย scratchpad/import_primary.js ผ่าน timetable_log GAS)
 // รัน: NODE_OPTIONS=--use-system-ca node build_data.js  (เครื่องนี้ fetch google ต้องใช้ system CA)
 const fs = require('fs');
-const P_SRC = [ // [ไฟล์, ช่วงชั้น 0=ป.1-3, 1=ป.4-6]
-  ['../timetable/timetable_p13.html', 0],
-  ['../timetable/timetable_p46.html', 1],
-];
 const SHEET = {
   teachers: 'https://docs.google.com/spreadsheets/d/1HZw5GndLG3EE4odpPiOX8ucGq8PpovBomULgUZVn3Yo/gviz/tq?tqx=out:csv',
   subjects: 'https://docs.google.com/spreadsheets/d/1BYF9tLnaBX9IHXafD32i1s21NOlnYQKPgIrXoLI8asU/gviz/tq?tqx=out:csv',
@@ -38,14 +35,6 @@ const GROUP_IDX = {
   'สุขศึกษาและพลศึกษา':4,'ศิลปะ':5,'การงานอาชีพ':6,'ภาษาต่างประเทศ':7,
 };
 
-function extract(file) {
-  const s = fs.readFileSync(file, 'utf8');
-  const T    = eval('(' + s.match(/const T = ({[\s\S]*?});/)[1] + ')');
-  const CL   = eval('(' + s.match(/const CL_MAP = ({[\s\S]*?});/)[1] + ')');
-  const AREA = eval('(' + s.match(/const AREA_OF = ({[\s\S]*?});/)[1] + ')');
-  const SCH  = eval(s.match(/const SCH_RAW = (\[[\s\S]*?\n\]);/)[1]);
-  return { T, CL, AREA, SCH };
-}
 const parseLine = line => {
   const cells = []; let cur = '', inQ = false;
   for (let i = 0; i < line.length; i++) {
@@ -95,33 +84,29 @@ function addSlot(tt, name, day, per, val) {
   tt[name][day][per] = val;
 }
 
-// ---- ประถม (regex จากไฟล์ตารางสอน) ----
-const P_REG = {}; // ทะเบียนครูทั้งโรงเรียน id→ชื่อ (ตาราง ม. อ้าง id ครูประถมในคาบกิจกรรม)
-for (const [f, lv] of P_SRC) {
-  const { T, CL, AREA, SCH } = extract(f);
-  Object.assign(P_REG, T);
-  Object.assign(classes, CL);
-  for (const [cls, subj, keys, day, per] of SCH) {
-    ctP[cls] = ctP[cls] || {}; ctP[cls][day] = ctP[cls][day] || {};
-    ctP[cls][day][per] = ctP[cls][day][per] || { s: subj };
-    for (const k of keys.split('+')) {
-      const name = T[k.trim()];
-      if (!name) { console.error('ไม่รู้จักครู:', k, 'ใน', f); continue; }
-      const t = touch(name);
-      t.lvCnt[lv]++;
-      const area = AREA[subj];
-      if (area && GROUP_IDX[area] !== undefined) t.areas[area] = (t.areas[area] || 0) + 1;
-      addSlot(ttP, name, day, per, { s: subj, c: cls });
-    }
-  }
-}
-
-// ---- มัธยม (สดจาก Google Sheets) ----
+// ---- ทุกอย่างสดจาก Google Sheets ----
 async function main() {
-  const [tR, sR, schR] = await Promise.all(
-    [SHEET.teachers, SHEET.subjects, SHEET.schedule].map(u =>
-      fetch(u).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status} ${u}`); return r.text(); })
-        .then(parseCSV)));
+  const fetchCSV = (u, raw) => fetch(u)
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status} ${u}`); return r.text(); })
+    .then(raw ? csvRaw : parseCSV);
+  const [tR, sR, schR, pR] = await Promise.all([
+    fetchCSV(SHEET.teachers), fetchCSV(SHEET.subjects), fetchCSV(SHEET.schedule),
+    fetchCSV(SHEET.schedule + '&sheet=' + encodeURIComponent('ตารางประถม')),
+  ]);
+
+  // ---- ประถม (แท็บ "ตารางประถม": class_id,class_name,day_of_week,period,subject_name,learning_area,teacher_name,is_active) ----
+  for (const r of pR) {
+    if (r.is_active !== 'TRUE') continue;
+    const pid = 'P' + r.class_name.replace(/[^0-9]/g, ''); // ป.1/1 → P11
+    classes[pid] = r.class_name;
+    const day = +r.day_of_week, per = +r.period;
+    ctP[pid] = ctP[pid] || {}; ctP[pid][day] = ctP[pid][day] || {};
+    ctP[pid][day][per] = ctP[pid][day][per] || { s: r.subject_name };
+    const t = touch(r.teacher_name);
+    t.lvCnt[r.class_id <= 'C10' ? 0 : 1]++; // C05-C10 = ป.1-3 (ช่วงชั้น 1)
+    if (GROUP_IDX[r.learning_area] !== undefined) t.areas[r.learning_area] = (t.areas[r.learning_area] || 0) + 1;
+    addSlot(ttP, r.teacher_name, day, per, { s: r.subject_name, c: pid });
+  }
   const T = {}; tR.forEach(r => { if (/^T\d+$/.test(r.teacher_id)) T[r.teacher_id] = `${r.first_name} ${r.last_name}`.trim(); });
   const S = {}; sR.forEach(r => { if (/^SB\d+$/.test(r.subject_id)) S[r.subject_id] = { n: r.subject_name, a: r.learning_area || '' }; });
   Object.assign(classes, M_CLASSES);
@@ -130,7 +115,7 @@ async function main() {
   for (const r of schR) {
     if (r.is_active !== 'TRUE' || !r.subject_id || !r.teacher_id) continue;
     if (!M_CLASSES[r.class_id]) continue; // ชีตมีแถว C11-C16 (คาบประถมของครูควบ) ปน — เอาเฉพาะ ม.
-    const name = T[r.teacher_id] || P_REG[r.teacher_id];
+    const name = T[r.teacher_id];
     const si = S[r.subject_id] || { n: 'กิจกรรม', a: 'กิจกรรมพัฒนาผู้เรียน' };
     const day = +r.day_of_week, per = +r.period;
     const room = mRoom(r.subject_id, r.teacher_id, si.n);
