@@ -47,6 +47,17 @@
   .popup .close{position:absolute;right:8px;top:6px;cursor:pointer;color:var(--muted);font-size:16px}
   .popup ul{margin:6px 0 0;padding-left:18px;max-height:160px;overflow:auto}
   .popup li{margin:1px 0}
+  #sidebar{position:absolute;left:0;top:0;bottom:0;width:230px;background:rgba(255,255,255,.97);
+    border-right:1px solid var(--line);z-index:20;display:flex;flex-direction:column;transition:transform .2s}
+  #sidebar.closed{transform:translateX(-100%)}
+  .sbHead{display:flex;gap:6px;padding:8px;border-bottom:1px solid var(--line)}
+  .sbHead input{flex:1;border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-family:inherit}
+  #sbBody{overflow:auto;flex:1;font-size:12px}
+  .sbSection{padding:6px 10px}
+  .sbSection h4{margin:6px 0 4px;font-size:11px;color:var(--muted)}
+  .sbGroup summary{cursor:pointer;padding:3px 0}
+  .sbItem{padding:2px 4px;cursor:pointer;border-radius:4px}
+  .sbItem:hover{background:#f0efe8}
 </style>
 </head>
 <body>
@@ -62,6 +73,13 @@
   <label class="tg"><input type="checkbox" id="bell" checked> 🔔</label>
   <div class="stat" id="stat"></div>
 </header>
+<aside id="sidebar" class="open">
+  <div class="sbHead"><input id="searchBox" placeholder="ค้นหาครู/นักเรียน..."><button id="sbToggle">☰</button></div>
+  <div id="sbBody">
+    <div class="sbSection"><h4>ห้อง/อาคาร</h4><div id="roomList"></div></div>
+    <div class="sbSection"><h4>คน</h4><div id="peopleList"></div></div>
+  </div>
+</aside>
 <main>
   <canvas id="cv"></canvas>
   <div class="legend" id="legend"></div>
@@ -737,6 +755,14 @@ function fitCam(){let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
 function screenToWorld(sx,sy){const r=cv.getBoundingClientRect();
   return[(sx-r.left-cam.x)/cam.s,(sy-r.top-cam.y)/cam.s];}
 function worldToTile(wx,wy){return{x:Math.round((wx/TW2+wy/TH2)/2),y:Math.round((wy/TH2-wx/TW2)/2)};}
+function filterPeople(q){
+  q=(q||'').trim();
+  if(!q)return[];
+  return[...TEACHERS,...STUDENTS].filter(a=>a.name.includes(q)||(a.full&&a.full.includes(q))).slice(0,40);
+}
+function focusOn(x,y){const[wx,wy]=iso(x,y);
+  // note: Task 9 introduces devicePixelRatio scaling (dpr) — revisit this centering math then
+  cam.x=cv.width/2-wx*cam.s;cam.y=cv.height/2-wy*cam.s;}
 
 let drag=null;
 cv.addEventListener('mousedown',e=>{drag={x:e.clientX,y:e.clientY,cx:cam.x,cy:cam.y,moved:false};cv.classList.add('drag');});
@@ -814,6 +840,35 @@ function buildUI(){
   document.getElementById('names').onchange=e=>showNames=e.target.checked;
   document.getElementById('nowBtn').onclick=gotoNow;
   setInterval(()=>{if(nowMode)gotoNow();},30000); // โหมดสด: เดินตามนาฬิกาไทยจริง
+
+  document.getElementById('roomList').innerHTML=ROOMS.map(r=>
+    `<div class="sbItem" data-room="${r.id}">${TYPE_ICON[r.type]||''} ${r.label}</div>`).join('');
+  document.getElementById('roomList').querySelectorAll('.sbItem').forEach(el=>{
+    el.onclick=()=>{const r=ROOM_BY_ID[el.dataset.room];focusOn(r.gx+r.gw/2,r.gy+r.gh/2);
+      showRoom(r.id,{clientX:innerWidth/2,clientY:innerHeight/2});};
+  });
+  const peopleList=document.getElementById('peopleList');
+  peopleList.innerHTML=CLASSROOMS.map(rid=>{
+    const ss=STUDENTS.filter(s=>s.home===rid);
+    return`<details class="sbGroup"><summary>${ROOM_BY_ID[rid].label} (${ss.length})</summary>
+      ${ss.map(s=>`<div class="sbItem" data-pid="${s.id}">🎒 ${s.name}</div>`).join('')}</details>`;
+  }).join('')+`<details class="sbGroup"><summary>ครู (${TEACHERS.length})</summary>
+      ${TEACHERS.map(t=>`<div class="sbItem" data-pid="${t.id}">${t.name}</div>`).join('')}</details>`;
+  const goToPerson=id=>{const a=[...TEACHERS,...STUDENTS].find(p=>p.id===+id);if(!a)return;
+    const c=chars.find(cc=>cc.a.id===a.id);if(!c)return;
+    focusOn(c.fx,c.fy);hlId=a.id;showPerson(c,{clientX:innerWidth/2,clientY:innerHeight/2});};
+  peopleList.querySelectorAll('[data-pid]').forEach(el=>{el.onclick=()=>goToPerson(el.dataset.pid);});
+  const searchBox=document.getElementById('searchBox');
+  searchBox.oninput=()=>{
+    const matches=filterPeople(searchBox.value);
+    peopleList.style.display=matches.length?'none':'';
+    let box=document.getElementById('searchResults');
+    if(!box){box=document.createElement('div');box.id='searchResults';document.getElementById('sbBody').prepend(box);}
+    box.innerHTML=matches.map(a=>`<div class="sbItem" data-pid="${a.id}">${a.student?'🎒':'👤'} ${a.name}</div>`).join('');
+    box.style.display=matches.length?'':'none';
+    box.querySelectorAll('[data-pid]').forEach(el=>{el.onclick=()=>goToPerson(el.dataset.pid);});
+  };
+  document.getElementById('sbToggle').onclick=()=>document.getElementById('sidebar').classList.toggle('closed');
 }
 function syncDays(){document.querySelectorAll('#days button').forEach((b,i)=>b.classList.toggle('on',i===day));}
 

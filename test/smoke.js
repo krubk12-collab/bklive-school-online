@@ -118,6 +118,17 @@ function run() {
     `, sandbox, { filename: 'sweep.js', timeout: 10000 });
   } catch (e) { errors.push('sweep threw: ' + (e.stack || e)); }
 
+  // Task 8: filterPeople() เป็นฟังก์ชัน pure — ทดสอบตรงไม่ต้องผ่าน DOM
+  try {
+    vm.runInContext(`
+      const r1=filterPeople('');
+      if(r1.length!==0) console.error('filterPeople("") ควรว่าง แต่ได้', r1.length);
+      const anyName=STUDENTS[0].name.slice(0,2);
+      const r2=filterPeople(anyName);
+      if(!r2.some(a=>a.id===STUDENTS[0].id)) console.error('filterPeople หาไม่เจอชื่อที่ควรเจอ:', anyName);
+    `, sandbox, { filename: 'sidebar.js', timeout: 10000 });
+  } catch (e) { errors.push('sidebar test threw: ' + (e.stack || e)); }
+
   // regression: บูตตอนเช้ามืด (tm ถูกบังคับให้ตรงกับ "เวลาจริง" ก่อน assign()+สร้าง Char ตัวแรก
   // — จำลองเงื่อนไขที่บั๊กเดิมพัง คือ assign() ตัวแรกรันด้วย tm ผิด(ค่า default 510)ทำให้ Char.prev
   // ถูกตั้งจากห้องที่ไม่ควรมีตัวจริงๆ) ต้องไม่มีใครที่ยังไม่ถึงเวลามาโผล่ให้ update/วาดบนแผนที่
