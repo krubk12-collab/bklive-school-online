@@ -495,11 +495,16 @@ class Char{
   }
 }
 class Critter{
-  constructor(name,emoji,desc,speed){this.name=name;this.emoji=emoji;this.desc=desc;this.speed=speed;
+  constructor(name,emoji,desc,speed,sounds){this.name=name;this.emoji=emoji;this.desc=desc;this.speed=speed;
+    this.sounds=sounds;this.soundT=2+Math.random()*4;this.dir=0;
     const s=YARD[rnd()%YARD.length];this.fx=s.x;this.fy=s.y;this.path=[];this.wait=1;this.ph=rnd()%10;}
   update(dt){
     if(this.path.length){
       const n=this.path[0],dx=n.x-this.fx,dy=n.y-this.fy,d=Math.hypot(dx,dy),st=this.speed*dt;
+      if(Math.abs(dx)+Math.abs(dy)>0.01){
+        // 4 ทิศ: เหนือ/ใต้/ตะวันออก/ตะวันตก ตามภาพหน้าจอ (isometric X/Y คนละแกนกับ dx/dy กริด)
+        this.dir=Math.abs(dx)>Math.abs(dy)?(dx>0?1:3):(dy>0?2:0);
+      }
       if(d<=st){this.fx=n.x;this.fy=n.y;this.path.shift();}
       else{this.fx+=dx/d*st;this.fy+=dy/d*st;}
       this.ph+=dt*8;this.moving=true;
@@ -507,13 +512,23 @@ class Critter{
       if(this.wait<=0){this.wait=2+Math.random()*6;
         const g=YARD[(Math.random()*YARD.length)|0];
         this.path=bfs(Math.round(this.fx),Math.round(this.fy),g.x,g.y);}}
+    this.soundT-=dt;if(this.soundT<=0){this.soundT=6+Math.random()*10;this._say=1.6;this._text=this.sounds(tm);}
+    if(this._say>0)this._say-=dt;
   }
   draw(){
     const[wx,wy]=iso(this.fx,this.fy);
     const bob=this.moving?Math.abs(Math.sin(this.ph))*1.8:Math.sin(last/700+this.ph)*0.5;
+    const lean=this.moving?[0,3,0,-3][this.dir]*0.3:0; // เอียงตัวเล็กน้อยตามทิศวิ่ง แทนแค่ลอยขึ้นลง
     ctx.fillStyle='rgba(0,0,0,.2)';ctx.beginPath();ctx.ellipse(wx,wy,7,3.2,0,0,7);ctx.fill();
+    ctx.save();ctx.translate(wx+lean,wy-8-bob);
     ctx.font='15px "Segoe UI Emoji"';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(this.emoji,wx,wy-8-bob);
+    ctx.fillStyle='#000'; // แก้บั๊ก: เดิมค้าง fillStyle เงาดำโปร่ง .2 ทำให้ตัวสัตว์จางมองแทบไม่เห็น
+    ctx.fillText(this.emoji,0,0);
+    ctx.restore();
+    if(this._say>0){ctx.font='10px Leelawadee UI';const w=ctx.measureText(this._text).width+8;
+      ctx.fillStyle='rgba(255,255,255,.95)';ctx.strokeStyle='#c9c2b0';
+      roundRect(ctx,wx-w/2,wy-34-bob,w,14,5);ctx.fill();ctx.stroke();
+      ctx.fillStyle='#000';ctx.fillText(this._text,wx,wy-27-bob);}
     return wy;
   }
 }
@@ -801,9 +816,9 @@ resize();prerender();buildUI();
 ({day,tm}=realDayTm()); // เวลาจริงก่อน assign()/สร้าง Char ตัวแรก กัน prev เพี้ยนจาก tm ค่าเริ่มต้น
 assign();
 chars=[...TEACHERS,...STUDENTS].map(a=>new Char(a));
-critters=[new Critter('เจ้าด่าง','🐕','หมาประจำโรงเรียน ชอบวิ่งเล่นสนาม',2.2),
-          new Critter('ส้มโอ','🐈','แมวส้มขี้อ้อน ประจำห้องพักครู',1.6),
-          new Critter('ไข่ต้ม','🐓','ไก่หลงมา อยู่ยาวจนเป็นขาประจำ',1.3)];
+critters=[new Critter('เจ้าด่าง','🐕','หมาประจำโรงเรียน ชอบวิ่งเล่นสนาม',2.2,()=>'โฮ่ง!'),
+          new Critter('ส้มโอ','🐈','แมวส้มขี้อ้อน ประจำห้องพักครู',1.6,()=>'เหมียว~'),
+          new Critter('ไข่ต้ม','🐓','ไก่หลงมา อยู่ยาวจนเป็นขาประจำ',1.3,t=>t<420?'เอ้กอีเอ้กเอ้ก!':'กระต๊ากๆ')];
 gotoNow();fitCam();selfCheck();
 requestAnimationFrame(frame);
 </script>
