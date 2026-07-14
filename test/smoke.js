@@ -117,6 +117,30 @@ function run() {
     `, sandbox, { filename: 'sweep.js', timeout: 10000 });
   } catch (e) { errors.push('sweep threw: ' + (e.stack || e)); }
 
+  // regression: บูตตอนเช้ามืด (tm ถูกบังคับให้ตรงกับ "เวลาจริง" ก่อน assign()+สร้าง Char ตัวแรก
+  // — จำลองเงื่อนไขที่บั๊กเดิมพัง คือ assign() ตัวแรกรันด้วย tm ผิด(ค่า default 510)ทำให้ Char.prev
+  // ถูกตั้งจากห้องที่ไม่ควรมีตัวจริงๆ) ต้องไม่มีใครที่ยังไม่ถึงเวลามาโผล่ให้ update/วาดบนแผนที่
+  try {
+    vm.runInContext(`
+      day=0; tm=375; // 06:15 — ก่อนเวลามาของนักเรียนส่วนใหญ่ (arriveT อยู่ 06:00-07:29)
+      assign();
+      const testChars=[...TEACHERS,...STUDENTS].map(a=>new Char(a));
+      const savedChars=chars; chars=testChars; setTime(); chars=savedChars;
+      const notYetArrived=testChars.filter(c=>c.a.arriveT>375);
+      if(notYetArrived.length===0) console.error('regression test ตั้งค่าไม่ได้ผล: ไม่มีใครที่ arriveT>375');
+      notYetArrived.forEach(c=>{
+        const visible=c.hasArrived&&!c.gone; // เงื่อนไขเดียวกับที่ frame() ใช้ตัดสินใจ update/วาด
+        if(visible) console.error('บั๊กเดิม: ตัวละครที่ยังไม่ถึงเวลามาถูกตั้งให้ปรากฏบนแผนที่',c.a.id,c.a.arriveT);
+        // this.leaving มีอยู่ทั้งก่อน/หลังแก้ — บั๊กเดิมคือคนที่ยังไม่มาโดนตั้ง prev จากห้องผิดๆ (tm=510 ตอนบูต)
+        // แล้ว setTime() เห็น room===null&&prev!==null เข้าใจผิดว่า "เพิ่งออก" สั่งเดินไปประตู (leaving=true) ทั้งที่ไม่เคยมา
+        if(c.leaving) console.error('บั๊กเดิม: คนที่ยังไม่มาถูกสั่งให้ "เดินออกจากห้อง" (leaving=true) ทั้งที่ไม่เคยปรากฏตัวจริง',c.a.id,c.a.arriveT);
+      });
+      const alreadyArrived=testChars.filter(c=>c.a.arriveT<=375);
+      if(alreadyArrived.length&&!alreadyArrived.some(c=>c.hasArrived&&!c.gone))
+        console.error('regression test overcorrect: คนที่มาแล้วกลับไม่ถูกวาดเลยสักคน');
+    `, sandbox, { filename: 'arrival-regression.js', timeout: 10000 });
+  } catch (e) { errors.push('arrival-regression threw: ' + (e.stack || e)); }
+
   if (errors.length) {
     console.error('SMOKE FAIL — captured console errors/asserts:\n' + errors.join('\n'));
     process.exit(1);

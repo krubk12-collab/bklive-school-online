@@ -437,7 +437,7 @@ function drawFront(r){
 const EYE={0:[2,4.6],1:[-0.5,3.2],2:[-2.2,2.2],3:[-3.2,0.5],4:[-4.6,-2]};
 const gateOf=g=>g==='back'?GATE_BACK:GATE_FRONT;
 class Char{
-  constructor(a){this.a=a;a.room=a.room||'staff';this.prev=a.room;const s=randTileIn(a.room);
+  constructor(a){this.a=a;this.hasArrived=a.room!=null;this.prev=a.room;a.room=a.room||'staff';const s=randTileIn(a.room);
     this.fx=s.x;this.fy=s.y;this.path=[];this.dir=2;this.phase=0;
     this.wander=1+(a.id%5);this.clickT=-9;}
   get tile(){return{x:Math.round(this.fx),y:Math.round(this.fy)};}
@@ -556,7 +556,7 @@ function setTime(){
       c.prev=null;return;
     }
     if(c.prev===null){ // เพิ่งมาถึง (หรือเพิ่งเริ่มโหลด) → โผล่ที่ประตูก่อนเดินเข้า
-      const g=gateOf(c.a.gate);c.fx=g.x;c.fy=g.y;c.gone=false;c.leaving=false;
+      const g=gateOf(c.a.gate);c.fx=g.x;c.fy=g.y;c.gone=false;c.leaving=false;c.hasArrived=true;
     }
     if(c.a.room===c.prev)return;
     c.prev=c.a.room;
@@ -598,11 +598,11 @@ function frame(ts){const dt=Math.min(0.05,(ts-last)/1000||0);last=ts;
   ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,cv.width,cv.height);
   ctx.setTransform(cam.s,0,0,cam.s,cam.x,cam.y);
   ctx.drawImage(bg,bgOX,bgOY);
-  chars.forEach(c=>{if(!c.gone)c.update(dt);});critters.forEach(c=>c.update(dt));
+  chars.forEach(c=>{if(c.hasArrived&&!c.gone)c.update(dt);});critters.forEach(c=>c.update(dt));
   const ents=[],tags=[];
   ROOMS.forEach(r=>{ents.push({d:r.gx+r.gy+0.01,f:()=>drawBack(r)});
     if(!OPEN_TYPES.includes(r.type))ents.push({d:r.gx+r.gw+r.gy+r.gh-0.01,f:()=>drawFront(r)});});
-  chars.forEach(c=>{if(c.gone)return;ents.push({d:c.fx+c.fy,f:()=>{const wy=c.draw();
+  chars.forEach(c=>{if(!c.hasArrived||c.gone)return;ents.push({d:c.fx+c.fy,f:()=>{const wy=c.draw();
     tags.push({wx:iso(c.fx,c.fy)[0],wy,c});}});});
   critters.forEach(c=>ents.push({d:c.fx+c.fy,f:()=>{const wy=c.draw();
     tags.push({wx:iso(c.fx,c.fy)[0],wy,cr:c});}}));
@@ -687,7 +687,7 @@ cv.addEventListener('wheel',e=>{e.preventDefault();const[wx,wy]=screenToWorld(e.
 function closePopup(){popup.style.display='none';hlId=-1;}
 function click(e){const[wx,wy]=screenToWorld(e.clientX,e.clientY);
   let best=null,bd=20;
-  chars.forEach(c=>{if(c.gone)return;const[cx,cy]=iso(c.fx,c.fy);
+  chars.forEach(c=>{if(!c.hasArrived||c.gone)return;const[cx,cy]=iso(c.fx,c.fy);
     const on=(grid[Math.round(c.fy)]?.[Math.round(c.fx)]?.plot)?PH:0;
     const d=Math.hypot(wx-cx,wy-(cy-on-16*c.a.scale));if(d<bd){bd=d;best={c};}});
   critters.forEach(c=>{const[cx,cy]=iso(c.fx,c.fy);
@@ -734,10 +734,10 @@ function showCritter(c,e){hlId=-1;
 // ================= UI =================
 // เวลาจริงโซนประเทศไทย (ผู้ชมอยู่ timezone ไหนก็เห็นตรงกัน)
 function thaiNow(){return new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Bangkok'}));}
-function gotoNow(){const n=thaiNow(),dow=n.getDay();
-  day=(dow>=1&&dow<=5)?dow-1:0;
-  tm=Math.max(TMIN,Math.min(TMAX,Math.round((n.getHours()*60+n.getMinutes())/5)*5));
-  nowMode=true;syncDays();setTime();}
+function realDayTm(){const n=thaiNow(),dow=n.getDay();
+  return{day:(dow>=1&&dow<=5)?dow-1:0,
+    tm:Math.max(TMIN,Math.min(TMAX,Math.round((n.getHours()*60+n.getMinutes())/5)*5))};}
+function gotoNow(){({day,tm}=realDayTm());nowMode=true;syncDays();setTime();}
 function buildUI(){
   const dd=document.getElementById('days');
   DAYS.forEach((d,i)=>{const b=document.createElement('button');b.textContent=d;
@@ -788,6 +788,7 @@ function selfCheck(){let ok=true;
 // ================= start =================
 addEventListener('resize',()=>{resize();fitCam();});
 resize();prerender();buildUI();
+({day,tm}=realDayTm()); // เวลาจริงก่อน assign()/สร้าง Char ตัวแรก กัน prev เพี้ยนจาก tm ค่าเริ่มต้น
 assign();
 chars=[...TEACHERS,...STUDENTS].map(a=>new Char(a));
 critters=[new Critter('เจ้าด่าง','🐕','หมาประจำโรงเรียน ชอบวิ่งเล่นสนาม',2.2),
